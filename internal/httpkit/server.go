@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/seatd/seatd/internal/app"
+	"github.com/kadebhug/seatd_v2/internal/app"
 )
 
 type Status struct {

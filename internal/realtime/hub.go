@@ -10,7 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/seatd/seatd/internal/domain/events"
+	"github.com/kadebhug/seatd_v2/internal/domain/events"
 )
 
 const DestinationOperations = "realtime.operations"

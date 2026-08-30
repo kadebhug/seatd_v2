@@ -14,7 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/seatd/seatd/internal/domain/events"
+	"github.com/kadebhug/seatd_v2/internal/domain/events"
 )
 
 const (

@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/seatd/seatd/internal/app"
+	"github.com/kadebhug/seatd_v2/internal/app"
 )
 
 func TestNewStatusMux(t *testing.T) {

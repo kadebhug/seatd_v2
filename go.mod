@@ -1,4 +1,4 @@
-module github.com/seatd/seatd
+module github.com/kadebhug/seatd_v2
 
 go 1.24
 

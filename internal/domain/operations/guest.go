@@ -17,8 +17,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/seatd/seatd/internal/domain/events"
-	"github.com/seatd/seatd/internal/store/db"
+	"github.com/kadebhug/seatd_v2/internal/domain/events"
+	"github.com/kadebhug/seatd_v2/internal/store/db"
 )
 
 const (

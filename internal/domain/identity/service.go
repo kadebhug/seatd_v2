@@ -13,7 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/seatd/seatd/internal/store/db"
+	"github.com/kadebhug/seatd_v2/internal/store/db"
 )
 
 const (

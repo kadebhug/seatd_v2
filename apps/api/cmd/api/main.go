@@ -7,10 +7,10 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/seatd/seatd/internal/app"
-	"github.com/seatd/seatd/internal/httpapi"
-	"github.com/seatd/seatd/internal/httpkit"
-	"github.com/seatd/seatd/internal/store"
+	"github.com/kadebhug/seatd_v2/internal/app"
+	"github.com/kadebhug/seatd_v2/internal/httpapi"
+	"github.com/kadebhug/seatd_v2/internal/httpkit"
+	"github.com/kadebhug/seatd_v2/internal/store"
 )
 
 var (

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/seatd/seatd/internal/domain/events"
+	"github.com/kadebhug/seatd_v2/internal/domain/events"
 )
 
 func TestWorkerBackoff(t *testing.T) {

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/seatd/seatd/internal/app"
+	"github.com/kadebhug/seatd_v2/internal/app"
 )
 
 func TestCommandRequiresDevelopmentHeaders(t *testing.T) {

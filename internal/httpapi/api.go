@@ -19,12 +19,12 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/seatd/seatd/internal/app"
-	"github.com/seatd/seatd/internal/domain/analytics"
-	"github.com/seatd/seatd/internal/domain/configuration"
-	"github.com/seatd/seatd/internal/domain/identity"
-	"github.com/seatd/seatd/internal/domain/operations"
-	"github.com/seatd/seatd/internal/store/db"
+	"github.com/kadebhug/seatd_v2/internal/app"
+	"github.com/kadebhug/seatd_v2/internal/domain/analytics"
+	"github.com/kadebhug/seatd_v2/internal/domain/configuration"
+	"github.com/kadebhug/seatd_v2/internal/domain/identity"
+	"github.com/kadebhug/seatd_v2/internal/domain/operations"
+	"github.com/kadebhug/seatd_v2/internal/store/db"
 )
 
 const (

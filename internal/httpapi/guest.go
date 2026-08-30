@@ -18,8 +18,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/seatd/seatd/internal/domain/operations"
-	"github.com/seatd/seatd/internal/store/db"
+	"github.com/kadebhug/seatd_v2/internal/domain/operations"
+	"github.com/kadebhug/seatd_v2/internal/store/db"
 )
 
 const guestBodyLimit = 32 << 10

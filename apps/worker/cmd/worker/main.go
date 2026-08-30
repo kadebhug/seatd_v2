@@ -13,11 +13,11 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/seatd/seatd/internal/app"
-	"github.com/seatd/seatd/internal/domain/analytics"
-	"github.com/seatd/seatd/internal/domain/events"
-	"github.com/seatd/seatd/internal/outbox"
-	"github.com/seatd/seatd/internal/store"
+	"github.com/kadebhug/seatd_v2/internal/app"
+	"github.com/kadebhug/seatd_v2/internal/domain/analytics"
+	"github.com/kadebhug/seatd_v2/internal/domain/events"
+	"github.com/kadebhug/seatd_v2/internal/outbox"
+	"github.com/kadebhug/seatd_v2/internal/store"
 )
 
 var (
