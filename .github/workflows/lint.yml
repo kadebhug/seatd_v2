@@ -1,0 +1,37 @@
+name: lint
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: npm ci
+      - run: dart pub get --directory packages/dart-seatd-client
+      - run: flutter pub get --directory apps/waiter
+      - run: flutter pub get --directory apps/display
+      - run: gofmt -w ./apps ./internal
+      - run: git diff --exit-code
+      - run: go vet ./apps/... ./internal/...
+      - run: npm run lint --workspaces --if-present
+      - run: dart analyze
+        working-directory: packages/dart-seatd-client
+      - run: flutter analyze
+        working-directory: apps/waiter
+      - run: flutter analyze
+        working-directory: apps/display
+      - run: ./infra/scripts/lint

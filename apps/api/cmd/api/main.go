@@ -1,0 +1,50 @@
+package main
+
+import (
+	"context"
+	"log/slog"
+	"os"
+	"os/signal"
+	"syscall"
+
+	"github.com/seatd/seatd/internal/app"
+	"github.com/seatd/seatd/internal/httpapi"
+	"github.com/seatd/seatd/internal/httpkit"
+	"github.com/seatd/seatd/internal/store"
+)
+
+var (
+	version = "dev"
+	commit  = "unknown"
+	date    = "unknown"
+)
+
+func main() {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	cfg, err := app.LoadConfig("api", 8080, app.BuildInfo{Version: version, Commit: commit, Date: date})
+	if err != nil {
+		slog.Error("configuration invalid", "error", err)
+		os.Exit(1)
+	}
+
+	logger := app.NewLogger(cfg)
+	if cfg.DatabaseURL == "" {
+		logger.ErrorContext(ctx, "database url is required", "variable", "SEATD_DATABASE_URL")
+		os.Exit(1)
+	}
+	pool, err := store.OpenPool(ctx, cfg.DatabaseURL)
+	if err != nil {
+		logger.ErrorContext(ctx, "database unavailable", "error", err)
+		os.Exit(1)
+	}
+	defer pool.Close()
+
+	mux := httpkit.NewStatusMux(cfg, logger)
+	mux.Handle("/v1/", httpapi.NewHandler(cfg, logger, pool))
+	if err := httpkit.Run(ctx, cfg, logger, mux); err != nil {
+		logger.ErrorContext(ctx, "api stopped with error", "error", err)
+		os.Exit(1)
+	}
+}

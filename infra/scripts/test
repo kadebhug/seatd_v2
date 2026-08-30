@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+./infra/database/scripts/check-migrations

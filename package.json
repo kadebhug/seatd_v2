@@ -1,0 +1,25 @@
+{
+  "name": "seatd",
+  "private": true,
+  "packageManager": "npm@11.17.0",
+  "workspaces": [
+    "apps/web",
+    "apps/guest",
+    "packages/api-contract",
+    "packages/event-schema",
+    "packages/typescript-seatd-client"
+  ],
+  "scripts": {
+    "bootstrap": "npm install",
+    "fmt": "npm run fmt --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present",
+    "generate": "node packages/typescript-seatd-client/scripts/generate.mjs && node packages/dart-seatd-client/scripts/generate.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "prettier": "^3.6.0",
+    "typescript": "^5.9.0"
+  }
+}

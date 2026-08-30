@@ -1,0 +1,11 @@
+name: seatd_client
+description: Generated Dart API client for Seatd.
+version: 0.0.0
+publish_to: none
+
+environment:
+  sdk: ^3.8.0
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.26.0

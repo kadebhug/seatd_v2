@@ -1,0 +1,18 @@
+# Local configuration and injected secrets
+.env
+.env.*
+!.env.example
+
+# Build and tool output
+.build/
+coverage/
+dist/
+node_modules/
+*.tsbuildinfo
+.dart_tool/
+.next/
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store

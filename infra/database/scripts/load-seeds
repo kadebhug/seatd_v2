@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+database_url="${SEATD_DATABASE_URL:-postgres://seatd:seatd@localhost:5432/seatd?sslmode=disable}"
+
+if command -v psql >/dev/null 2>&1; then
+  psql "$database_url" -f infra/database/seeds/local.sql
+elif docker compose -f infra/compose.yml ps --status running postgres >/dev/null 2>&1; then
+  docker compose -f infra/compose.yml exec -T postgres \
+    psql -U seatd -d seatd -v ON_ERROR_STOP=1 < infra/database/seeds/local.sql
+else
+  printf 'error: psql is required to load seed fixtures\n' >&2
+  exit 1
+fi

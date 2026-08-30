@@ -1,0 +1,14 @@
+DROP TABLE IF EXISTS legacy_table_mappings;
+DROP TABLE IF EXISTS legacy_restaurant_mappings;
+DROP TABLE IF EXISTS assist_requests;
+ALTER TABLE IF EXISTS table_occupancy DROP CONSTRAINT IF EXISTS table_occupancy_current_session_fk;
+DROP TABLE IF EXISTS table_occupancy;
+DROP TABLE IF EXISTS table_sessions;
+DROP TABLE IF EXISTS table_qr_capabilities;
+DROP TABLE IF EXISTS tables;
+DROP TABLE IF EXISTS zones;
+DROP TABLE IF EXISTS floors;
+DROP TABLE IF EXISTS location_memberships;
+DROP TABLE IF EXISTS organisation_memberships;
+DROP TABLE IF EXISTS locations;
+DROP TABLE IF EXISTS organisations;

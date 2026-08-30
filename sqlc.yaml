@@ -1,0 +1,28 @@
+version: "2"
+sql:
+  - engine: "postgresql"
+    schema:
+      - "infra/database/migrations/000001_foundation_schema.up.sql"
+      - "infra/database/migrations/000002_core_domain.up.sql"
+      - "infra/database/migrations/000003_identity_tenancy_security.up.sql"
+      - "infra/database/migrations/000004_backend_api_command_model.up.sql"
+      - "infra/database/migrations/000005_events_outbox_workers.up.sql"
+      - "infra/database/migrations/000006_owner_platform_web.up.sql"
+      - "infra/database/migrations/000007_guest_qr_experience.up.sql"
+      - "infra/database/migrations/000008_display_kiosk_device_management.up.sql"
+      - "infra/database/migrations/000009_analytics_reporting.up.sql"
+    queries:
+      - "internal/store/queries"
+    gen:
+      go:
+        package: "db"
+        out: "internal/store/db"
+        sql_package: "pgx/v5"
+        emit_json_tags: true
+        emit_empty_slices: true
+        overrides:
+          - db_type: "uuid"
+            go_type: "github.com/google/uuid.UUID"
+          - db_type: "uuid"
+            nullable: true
+            go_type: "github.com/google/uuid.NullUUID"

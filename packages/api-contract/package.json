@@ -1,0 +1,12 @@
+{
+  "name": "@seatd/api-contract",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "node scripts/validate.mjs",
+    "test": "node scripts/validate.mjs",
+    "build": "node scripts/validate.mjs",
+    "generate": "node scripts/validate.mjs",
+    "clean": "true"
+  }
+}

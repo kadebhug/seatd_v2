@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+database_url="${SEATD_DATABASE_URL:-postgres://seatd:seatd@localhost:5432/seatd?sslmode=disable}"
+timeout_value="${SEATD_MIGRATION_TIMEOUT:-30s}"
+
+if command -v migrate >/dev/null 2>&1; then
+  timeout "$timeout_value" migrate -path infra/database/migrations -database "$database_url" up
+elif docker compose -f infra/compose.yml ps --status running postgres >/dev/null 2>&1; then
+  for migration in infra/database/migrations/*.up.sql; do
+    printf 'Applying %s\n' "$migration"
+    docker compose -f infra/compose.yml exec -T postgres \
+      psql -U seatd -d seatd -v ON_ERROR_STOP=1 < "$migration"
+  done
+else
+  timeout "$timeout_value" docker run --rm --network host \
+    -v "$PWD/infra/database/migrations:/migrations:ro" \
+    migrate/migrate:v4.18.3 \
+    -path /migrations -database "$database_url" up
+fi

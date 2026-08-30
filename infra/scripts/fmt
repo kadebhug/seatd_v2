@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+find infra/database/migrations infra/database/seeds -type f -name '*.sql' -print >/dev/null

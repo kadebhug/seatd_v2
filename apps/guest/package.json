@@ -1,0 +1,24 @@
+{
+  "name": "@seatd/guest",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "fmt": "prettier --write .",
+    "lint": "tsc --noEmit",
+    "test": "tsc --noEmit",
+    "build": "tsc --noEmit && vite build",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@seatd/typescript-seatd-client": "0.0.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "vite": "^7.1.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0"
+  }
+}

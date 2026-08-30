@@ -1,0 +1,36 @@
+name: test
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: npm ci
+      - run: dart pub get --directory packages/dart-seatd-client
+      - run: flutter pub get --directory apps/waiter
+      - run: flutter pub get --directory apps/display
+      - run: npm run generate
+      - run: git diff --exit-code
+      - run: go test -race -shuffle=on ./apps/... ./internal/...
+      - run: npm run test --workspaces --if-present
+      - run: dart test
+        working-directory: packages/dart-seatd-client
+      - run: flutter test
+        working-directory: apps/waiter
+      - run: flutter test
+        working-directory: apps/display

@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+./scripts/go-command.sh go test ./apps/realtime/...

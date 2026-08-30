@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: seatd
+      POSTGRES_PASSWORD: seatd
+      POSTGRES_USER: seatd
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U seatd -d seatd"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - seatd-postgres:/var/lib/postgresql/data
+
+volumes:
+  seatd-postgres:

@@ -1,0 +1,3985 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Seatd API",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/healthz": {
+      "get": {
+        "operationId": "getHealth",
+        "responses": {
+          "204": {
+            "description": "Service is healthy"
+          }
+        }
+      }
+    },
+    "/status": {
+      "get": {
+        "operationId": "getStatus",
+        "responses": {
+          "200": {
+            "description": "Service status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/version": {
+      "get": {
+        "operationId": "getVersion",
+        "responses": {
+          "200": {
+            "description": "Build version metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BuildInfo"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/organisations/{id}": {
+      "get": {
+        "operationId": "getOrganisation",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IDPath"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/OrganisationResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateOrganisation",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/ActorHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IDPath"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/UpdateOrganisationRequest"
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/OrganisationResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/owner/snapshot": {
+      "get": {
+        "operationId": "getOwnerSnapshot",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/ActorHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/OwnerSnapshotResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/locations/{id}": {
+      "get": {
+        "operationId": "getLocation",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/LocationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IDPath"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/LocationResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateLocation",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/LocationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/ActorHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IDPath"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/UpdateLocationRequest"
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/LocationResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/floors": {
+      "get": {
+        "operationId": "listFloors",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/LocationHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/FloorsResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createFloor",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/LocationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/ActorHeader"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/FloorRequest"
+        },
+        "responses": {
+          "201": {
+            "$ref": "#/components/responses/FloorResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/floors/{id}": {
+      "put": {
+        "operationId": "updateFloor",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/LocationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/ActorHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IDPath"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/FloorRequest"
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/FloorResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/floors/{id}/archive": {
+      "post": {
+        "operationId": "archiveFloor",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/LocationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/ActorHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IDPath"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/ArchiveRequest"
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/FloorResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/floors/{id}/restore": {
+      "post": {
+        "operationId": "restoreFloor",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/LocationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/ActorHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IDPath"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/ArchiveRequest"
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/FloorResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/floors/{id}/zones": {
+      "get": {
+        "operationId": "listZones",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/LocationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IDPath"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/ZonesResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/floors/{id}/tables": {
+      "get": {
+        "operationId": "listTables",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/LocationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IDPath"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/TablesResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/layout/editor-snapshot": {
+      "get": {
+        "operationId": "getLayoutEditorSnapshot",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/LocationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/ActorHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/LayoutEditorSnapshotResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/zones": {
+      "post": {
+        "operationId": "createZone",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/LocationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/ActorHeader"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/ZoneRequest"
+        },
+        "responses": {
+          "201": {
+            "$ref": "#/components/responses/ZoneResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/zones/{id}": {
+      "put": {
+        "operationId": "updateZone",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/LocationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/ActorHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IDPath"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/ZoneRequest"
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/ZoneResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/zones/{id}/archive": {
+      "post": {
+        "operationId": "archiveZone",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/LocationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/ActorHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IDPath"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/ArchiveRequest"
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/ZoneResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/tables/{id}": {
+      "get": {
+        "operationId": "getTable",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/LocationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IDPath"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/TableStateResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateTable",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/LocationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/ActorHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IDPath"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/TableRequest"
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/TableResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/tables/{id}/qr-capabilities": {
+      "get": {
+        "operationId": "listTableQRCapabilities",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/LocationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/ActorHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IDPath"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/TableQRCapabilitiesResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      },
+      "post": {
+        "operationId": "exportTableQRCapability",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/LocationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/ActorHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IDPath"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/ExportQRRequest"
+        },
+        "responses": {
+          "201": {
+            "$ref": "#/components/responses/QRExportResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/tables/{id}/qr-capabilities/{capabilityId}/rotate": {
+      "post": {
+        "operationId": "rotateTableQRCapability",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/LocationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/ActorHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IDPath"
+          },
+          {
+            "$ref": "#/components/parameters/CapabilityIDPath"
+          }
+        ],
+        "responses": {
+          "201": {
+            "$ref": "#/components/responses/QRExportResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/tables/{id}/qr-capabilities/{capabilityId}/revoke": {
+      "post": {
+        "operationId": "revokeTableQRCapability",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/LocationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/ActorHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IDPath"
+          },
+          {
+            "$ref": "#/components/parameters/CapabilityIDPath"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/TableQRCapabilityResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/tables": {
+      "post": {
+        "operationId": "createTable",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/LocationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/ActorHeader"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/TableRequest"
+        },
+        "responses": {
+          "201": {
+            "$ref": "#/components/responses/TableResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/tables/{id}/archive": {
+      "post": {
+        "operationId": "archiveTable",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/LocationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/ActorHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IDPath"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/ArchiveRequest"
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/TableResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/tables/{id}/restore": {
+      "post": {
+        "operationId": "restoreTable",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/LocationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/ActorHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IDPath"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/ArchiveRequest"
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/TableResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/location-state": {
+      "get": {
+        "operationId": "getLocationState",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/LocationHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/LocationStateResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/assists": {
+      "get": {
+        "operationId": "listActiveAssists",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/LocationHeader"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "active"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/AssistsResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/guest/qr/{token}": {
+      "get": {
+        "operationId": "getGuestQR",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TokenPath"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/GuestContextResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/guest/qr/{token}/requests": {
+      "post": {
+        "operationId": "createGuestRequest",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TokenPath"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/GuestCreateRequest"
+        },
+        "responses": {
+          "201": {
+            "$ref": "#/components/responses/AssistResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/guest/qr/{token}/requests/{id}": {
+      "get": {
+        "operationId": "getGuestRequest",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TokenPath"
+          },
+          {
+            "$ref": "#/components/parameters/IDPath"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/AssistResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/guest/qr/{token}/requests/{id}/cancel": {
+      "post": {
+        "operationId": "cancelGuestRequest",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TokenPath"
+          },
+          {
+            "$ref": "#/components/parameters/IDPath"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/GuestCancelRequest"
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/AssistResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/sync/location-snapshot": {
+      "get": {
+        "operationId": "getLocationSnapshot",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/LocationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/ActorHeader"
+          },
+          {
+            "$ref": "#/components/parameters/DeviceHeaderRequired"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/LocationSnapshotResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/sync/events": {
+      "get": {
+        "operationId": "listSyncEvents",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/LocationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/ActorHeader"
+          },
+          {
+            "$ref": "#/components/parameters/DeviceHeaderRequired"
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500,
+              "default": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/SyncEventsResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/audit/timeline": {
+      "get": {
+        "operationId": "getAuditTimeline",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/LocationHeader"
+          },
+          {
+            "name": "entityType",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "entityId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/AuditTimelineResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/devices": {
+      "get": {
+        "operationId": "listDevices",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/LocationHeaderOptional"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/DevicesResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/devices/pairing-codes": {
+      "post": {
+        "operationId": "createDevicePairingCode",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/ActorHeader"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/CreatePairingCodeRequest"
+        },
+        "responses": {
+          "201": {
+            "$ref": "#/components/responses/PairingCodeResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/devices/pair": {
+      "post": {
+        "operationId": "pairDevice",
+        "requestBody": {
+          "$ref": "#/components/requestBodies/PairDeviceRequest"
+        },
+        "responses": {
+          "201": {
+            "$ref": "#/components/responses/PairDeviceResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/devices/heartbeat": {
+      "post": {
+        "operationId": "deviceHeartbeat",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/BearerAuthorizationHeader"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/DeviceHeartbeatRequest"
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/DeviceResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/devices/display-snapshot": {
+      "get": {
+        "operationId": "getDisplaySnapshot",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/BearerAuthorizationHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/LocationSnapshotResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/devices/{id}/revoke": {
+      "post": {
+        "operationId": "revokeDevice",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/ActorHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IDPath"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/DeviceResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/memberships": {
+      "get": {
+        "operationId": "listMemberships",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/LocationHeaderOptional"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/MembershipsResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/tables/{id}/occupy": {
+      "post": {
+        "operationId": "occupyTable",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/LocationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/ActorHeader"
+          },
+          {
+            "$ref": "#/components/parameters/DeviceHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IDPath"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/TableCommandRequest"
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/TableCommandResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/tables/{id}/clear": {
+      "post": {
+        "operationId": "clearTable",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/LocationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/ActorHeader"
+          },
+          {
+            "$ref": "#/components/parameters/DeviceHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IDPath"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/CommandRequest"
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/TableCommandResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/assists/{id}/acknowledge": {
+      "post": {
+        "operationId": "acknowledgeAssist",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/LocationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/ActorHeader"
+          },
+          {
+            "$ref": "#/components/parameters/DeviceHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IDPath"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/CommandRequest"
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/AssistResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/assists/{id}/resolve": {
+      "post": {
+        "operationId": "resolveAssist",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/LocationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/ActorHeader"
+          },
+          {
+            "$ref": "#/components/parameters/DeviceHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IDPath"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/CommandRequest"
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/AssistResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/assists/{id}/cancel": {
+      "post": {
+        "operationId": "cancelAssist",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/LocationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/ActorHeader"
+          },
+          {
+            "$ref": "#/components/parameters/DeviceHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IDPath"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/CommandRequest"
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/AssistResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/analytics/summary": {
+      "get": {
+        "operationId": "getAnalyticsSummary",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/LocationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/ActorHeader"
+          },
+          {
+            "name": "locationId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Analytics summary",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsSummary"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/analytics/timeseries": {
+      "get": {
+        "operationId": "getAnalyticsTimeseries",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/LocationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/ActorHeader"
+          },
+          {
+            "name": "locationId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "grain",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "hour",
+                "day"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Analytics timeseries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsTimeseriesResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/analytics/comparison": {
+      "get": {
+        "operationId": "getAnalyticsComparison",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/LocationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/ActorHeader"
+          },
+          {
+            "name": "locationId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "groupBy",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "zone",
+                "floor",
+                "service_period"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Analytics comparison",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsComparisonResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/analytics/data-quality": {
+      "get": {
+        "operationId": "getAnalyticsDataQuality",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/LocationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/ActorHeader"
+          },
+          {
+            "name": "locationId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Analytics data quality",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsDataQuality"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/analytics/rebuild": {
+      "post": {
+        "operationId": "rebuildAnalytics",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/LocationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/ActorHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnalyticsRebuildRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Analytics rebuild accepted"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/service-periods": {
+      "get": {
+        "operationId": "listServicePeriods",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/LocationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/ActorHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Service periods",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServicePeriodsResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createServicePeriod",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/LocationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/ActorHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServicePeriodRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Service period",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServicePeriod"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/service-periods/{id}": {
+      "put": {
+        "operationId": "updateServicePeriod",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/LocationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/ActorHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IDPath"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServicePeriodRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Service period",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServicePeriod"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/service-periods/{id}/archive": {
+      "post": {
+        "operationId": "archiveServicePeriod",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/LocationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/ActorHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IDPath"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/ArchiveRequest"
+        },
+        "responses": {
+          "200": {
+            "description": "Service period",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServicePeriod"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "OrganisationHeader": {
+        "name": "X-Seatd-Organisation-ID",
+        "in": "header",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "LocationHeader": {
+        "name": "X-Seatd-Location-ID",
+        "in": "header",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "LocationHeaderOptional": {
+        "name": "X-Seatd-Location-ID",
+        "in": "header",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "ActorHeader": {
+        "name": "X-Seatd-Actor-Ref",
+        "in": "header",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "BearerAuthorizationHeader": {
+        "name": "Authorization",
+        "in": "header",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "pattern": "^Bearer .+"
+        }
+      },
+      "DeviceHeader": {
+        "name": "X-Seatd-Device-ID",
+        "in": "header",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "DeviceHeaderRequired": {
+        "name": "X-Seatd-Device-ID",
+        "in": "header",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "IDPath": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "CapabilityIDPath": {
+        "name": "capabilityId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "TokenPath": {
+        "name": "token",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "minLength": 16
+        }
+      }
+    },
+    "requestBodies": {
+      "CommandRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/CommandRequest"
+            }
+          }
+        }
+      },
+      "TableCommandRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/TableCommandRequest"
+            }
+          }
+        }
+      },
+      "UpdateOrganisationRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/UpdateOrganisationRequest"
+            }
+          }
+        }
+      },
+      "UpdateLocationRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/UpdateLocationRequest"
+            }
+          }
+        }
+      },
+      "FloorRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/FloorRequest"
+            }
+          }
+        }
+      },
+      "ZoneRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ZoneRequest"
+            }
+          }
+        }
+      },
+      "TableRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/TableRequest"
+            }
+          }
+        }
+      },
+      "ArchiveRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ArchiveRequest"
+            }
+          }
+        }
+      },
+      "GuestCreateRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/GuestCreateRequest"
+            }
+          }
+        }
+      },
+      "GuestCancelRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/GuestCancelRequest"
+            }
+          }
+        }
+      },
+      "ExportQRRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ExportQRRequest"
+            }
+          }
+        }
+      },
+      "CreatePairingCodeRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/CreatePairingCodeRequest"
+            }
+          }
+        }
+      },
+      "PairDeviceRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/PairDeviceRequest"
+            }
+          }
+        }
+      },
+      "DeviceHeartbeatRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/DeviceHeartbeatRequest"
+            }
+          }
+        }
+      }
+    },
+    "responses": {
+      "OrganisationResponse": {
+        "description": "Organisation",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Organisation"
+            }
+          }
+        }
+      },
+      "LocationResponse": {
+        "description": "Location",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Location"
+            }
+          }
+        }
+      },
+      "OwnerSnapshotResponse": {
+        "description": "Owner shell snapshot",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/OwnerSnapshotResponse"
+            }
+          }
+        }
+      },
+      "FloorResponse": {
+        "description": "Floor",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Floor"
+            }
+          }
+        }
+      },
+      "ZoneResponse": {
+        "description": "Zone",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Zone"
+            }
+          }
+        }
+      },
+      "TableResponse": {
+        "description": "Table",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Table"
+            }
+          }
+        }
+      },
+      "LayoutEditorSnapshotResponse": {
+        "description": "Floor editor snapshot",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/LayoutEditorSnapshotResponse"
+            }
+          }
+        }
+      },
+      "FloorsResponse": {
+        "description": "Floors",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/FloorsResponse"
+            }
+          }
+        }
+      },
+      "ZonesResponse": {
+        "description": "Zones",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ZonesResponse"
+            }
+          }
+        }
+      },
+      "TablesResponse": {
+        "description": "Tables",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/TablesResponse"
+            }
+          }
+        }
+      },
+      "TableStateResponse": {
+        "description": "Table state",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/TableState"
+            }
+          }
+        }
+      },
+      "LocationStateResponse": {
+        "description": "Location state",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/LocationStateResponse"
+            }
+          }
+        }
+      },
+      "AssistsResponse": {
+        "description": "Active assists",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/AssistsResponse"
+            }
+          }
+        }
+      },
+      "GuestContextResponse": {
+        "description": "Guest QR context",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/GuestContext"
+            }
+          }
+        }
+      },
+      "TableQRCapabilityResponse": {
+        "description": "Table QR capability",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/TableQRCapability"
+            }
+          }
+        }
+      },
+      "TableQRCapabilitiesResponse": {
+        "description": "Table QR capabilities",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/TableQRCapabilitiesResponse"
+            }
+          }
+        }
+      },
+      "QRExportResponse": {
+        "description": "New QR capability token export",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/QRExport"
+            }
+          }
+        }
+      },
+      "AuditTimelineResponse": {
+        "description": "Operational event timeline",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/AuditTimelineResponse"
+            }
+          }
+        }
+      },
+      "LocationSnapshotResponse": {
+        "description": "Location sync snapshot",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/LocationSnapshotResponse"
+            }
+          }
+        }
+      },
+      "SyncEventsResponse": {
+        "description": "Realtime events after a cursor",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/SyncEventsResponse"
+            }
+          }
+        }
+      },
+      "AssistResponse": {
+        "description": "Assist",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Assist"
+            }
+          }
+        }
+      },
+      "DevicesResponse": {
+        "description": "Devices",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/DevicesResponse"
+            }
+          }
+        }
+      },
+      "DeviceResponse": {
+        "description": "Device",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Device"
+            }
+          }
+        }
+      },
+      "PairingCodeResponse": {
+        "description": "Display pairing code",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/PairingCodeResponse"
+            }
+          }
+        }
+      },
+      "PairDeviceResponse": {
+        "description": "Paired device credential",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/PairDeviceResponse"
+            }
+          }
+        }
+      },
+      "MembershipsResponse": {
+        "description": "Memberships",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/MembershipsResponse"
+            }
+          }
+        }
+      },
+      "TableCommandResponse": {
+        "description": "Table command result",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/TableCommandResponse"
+            }
+          }
+        }
+      },
+      "ErrorResponse": {
+        "description": "Machine-readable error",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "BuildInfo": {
+        "type": "object",
+        "required": [
+          "version",
+          "commit",
+          "date"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "commit": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string"
+          }
+        }
+      },
+      "ServiceStatus": {
+        "type": "object",
+        "required": [
+          "service",
+          "environment",
+          "status",
+          "version"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "service": {
+            "type": "string"
+          },
+          "environment": {
+            "type": "string",
+            "enum": [
+              "local",
+              "test",
+              "staging",
+              "production"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok"
+            ]
+          },
+          "version": {
+            "$ref": "#/components/schemas/BuildInfo"
+          }
+        }
+      },
+      "CommandRequest": {
+        "type": "object",
+        "required": [
+          "commandId",
+          "expectedVersion"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "commandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "TableCommandRequest": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/CommandRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "partySize": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          }
+        ]
+      },
+      "Organisation": {
+        "type": "object",
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "disabled"
+            ]
+          }
+        }
+      },
+      "Location": {
+        "type": "object",
+        "required": [
+          "id",
+          "organisationId",
+          "slug",
+          "name",
+          "timezone",
+          "status",
+          "operatingConfig",
+          "featureFlags"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "organisationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "disabled"
+            ]
+          },
+          "operatingConfig": {
+            "type": "object"
+          },
+          "featureFlags": {
+            "type": "object"
+          }
+        }
+      },
+      "Floor": {
+        "type": "object",
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "sortOrder",
+          "canvas",
+          "isActive",
+          "version"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "sortOrder": {
+            "type": "integer"
+          },
+          "canvas": {
+            "type": "object"
+          },
+          "backgroundAssetRef": {
+            "type": "string"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "integer"
+          }
+        }
+      },
+      "Zone": {
+        "type": "object",
+        "required": [
+          "id",
+          "floorId",
+          "name",
+          "sortOrder",
+          "isActive",
+          "version"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "floorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "sortOrder": {
+            "type": "integer"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "integer"
+          }
+        }
+      },
+      "Table": {
+        "type": "object",
+        "required": [
+          "id",
+          "floorId",
+          "zoneId",
+          "label",
+          "capacityLabel",
+          "shape",
+          "geometry",
+          "isActive",
+          "version"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "floorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "zoneId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "label": {
+            "type": "string"
+          },
+          "capacityLabel": {
+            "type": "string"
+          },
+          "shape": {
+            "type": "string",
+            "enum": [
+              "rectangle",
+              "circle",
+              "square",
+              "custom"
+            ]
+          },
+          "geometry": {
+            "type": "object"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "integer"
+          }
+        }
+      },
+      "Occupancy": {
+        "type": "object",
+        "required": [
+          "status",
+          "version",
+          "updatedAt"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "available",
+              "occupied"
+            ]
+          },
+          "currentSessionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "TableState": {
+        "type": "object",
+        "required": [
+          "table",
+          "occupancy"
+        ],
+        "properties": {
+          "table": {
+            "$ref": "#/components/schemas/Table"
+          },
+          "occupancy": {
+            "$ref": "#/components/schemas/Occupancy"
+          }
+        }
+      },
+      "TableSession": {
+        "type": "object",
+        "required": [
+          "id",
+          "tableId",
+          "startedAt",
+          "source"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tableId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "partySize": {
+            "type": "integer"
+          },
+          "source": {
+            "type": "string"
+          }
+        }
+      },
+      "TableCommandResponse": {
+        "type": "object",
+        "required": [
+          "table",
+          "occupancy",
+          "session"
+        ],
+        "properties": {
+          "table": {
+            "$ref": "#/components/schemas/Table"
+          },
+          "occupancy": {
+            "$ref": "#/components/schemas/Occupancy"
+          },
+          "session": {
+            "$ref": "#/components/schemas/TableSession"
+          }
+        }
+      },
+      "OwnerSnapshotResponse": {
+        "type": "object",
+        "required": [
+          "organisation",
+          "locations"
+        ],
+        "properties": {
+          "organisation": {
+            "$ref": "#/components/schemas/Organisation"
+          },
+          "locations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Location"
+            }
+          }
+        }
+      },
+      "LayoutEditorSnapshotResponse": {
+        "type": "object",
+        "required": [
+          "floors",
+          "zones",
+          "tables"
+        ],
+        "properties": {
+          "floors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Floor"
+            }
+          },
+          "zones": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Zone"
+            }
+          },
+          "tables": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TableState"
+            }
+          }
+        }
+      },
+      "UpdateOrganisationRequest": {
+        "type": "object",
+        "required": [
+          "slug",
+          "name",
+          "status"
+        ],
+        "properties": {
+          "slug": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "disabled"
+            ]
+          }
+        }
+      },
+      "UpdateLocationRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "timezone",
+          "status",
+          "operatingConfig",
+          "featureFlags"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "timezone": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "disabled"
+            ]
+          },
+          "operatingConfig": {
+            "type": "object"
+          },
+          "featureFlags": {
+            "type": "object"
+          }
+        }
+      },
+      "FloorRequest": {
+        "type": "object",
+        "required": [
+          "slug",
+          "name",
+          "sortOrder",
+          "canvas"
+        ],
+        "properties": {
+          "slug": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sortOrder": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "canvas": {
+            "type": "object"
+          },
+          "backgroundAssetRef": {
+            "type": "string"
+          },
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "ZoneRequest": {
+        "type": "object",
+        "required": [
+          "floorId",
+          "name",
+          "sortOrder"
+        ],
+        "properties": {
+          "floorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sortOrder": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "TableRequest": {
+        "type": "object",
+        "required": [
+          "floorId",
+          "zoneId",
+          "label",
+          "capacityLabel",
+          "shape",
+          "geometry"
+        ],
+        "properties": {
+          "floorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "zoneId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1
+          },
+          "capacityLabel": {
+            "type": "string",
+            "minLength": 1
+          },
+          "shape": {
+            "type": "string",
+            "enum": [
+              "rectangle",
+              "circle",
+              "square",
+              "custom"
+            ]
+          },
+          "geometry": {
+            "type": "object"
+          },
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "ArchiveRequest": {
+        "type": "object",
+        "required": [
+          "expectedVersion"
+        ],
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "floorId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "Assist": {
+        "type": "object",
+        "required": [
+          "id",
+          "tableId",
+          "status",
+          "requestedAt",
+          "version"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tableId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tableSessionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "acknowledged",
+              "resolved",
+              "cancelled"
+            ]
+          },
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "note": {
+            "type": "string"
+          },
+          "actionKey": {
+            "type": "string"
+          }
+        }
+      },
+      "GuestAction": {
+        "type": "object",
+        "required": [
+          "key",
+          "label"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        }
+      },
+      "GuestContext": {
+        "type": "object",
+        "required": [
+          "locationName",
+          "tableLabel",
+          "occupancy",
+          "actions"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "locationName": {
+            "type": "string"
+          },
+          "tableLabel": {
+            "type": "string"
+          },
+          "occupancy": {
+            "$ref": "#/components/schemas/Occupancy"
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GuestAction"
+            }
+          },
+          "activeRequest": {
+            "$ref": "#/components/schemas/Assist"
+          }
+        }
+      },
+      "GuestCreateRequest": {
+        "type": "object",
+        "required": [
+          "commandId",
+          "actionKey"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "commandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "actionKey": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "GuestCancelRequest": {
+        "type": "object",
+        "required": [
+          "commandId"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "commandId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "TableQRCapability": {
+        "type": "object",
+        "required": [
+          "id",
+          "tableId",
+          "lookupPrefix",
+          "issuedAt",
+          "version"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tableId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "lookupPrefix": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "issuedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "revokedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastUsedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "type": "integer"
+          }
+        }
+      },
+      "TableQRCapabilitiesResponse": {
+        "type": "object",
+        "required": [
+          "qrCapabilities"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "qrCapabilities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TableQRCapability"
+            }
+          }
+        }
+      },
+      "QRExport": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/TableQRCapability"
+          },
+          {
+            "type": "object",
+            "required": [
+              "token",
+              "publicUrl"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "token": {
+                "type": "string"
+              },
+              "publicUrl": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
+      "ExportQRRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Device": {
+        "type": "object",
+        "required": [
+          "id",
+          "organisationId",
+          "deviceType",
+          "platform",
+          "appVersion",
+          "trustState",
+          "registeredAt",
+          "heartbeatIntervalSeconds",
+          "capabilities",
+          "configuration"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "organisationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "deviceType": {
+            "type": "string"
+          },
+          "platform": {
+            "type": "string"
+          },
+          "appVersion": {
+            "type": "string"
+          },
+          "trustState": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "trusted",
+              "revoked"
+            ]
+          },
+          "registeredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastSeenAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastHeartbeatAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "assignedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "revokedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "heartbeatIntervalSeconds": {
+            "type": "integer"
+          },
+          "capabilities": {
+            "type": "object"
+          },
+          "configuration": {
+            "type": "object"
+          }
+        }
+      },
+      "CreatePairingCodeRequest": {
+        "type": "object",
+        "required": [
+          "locationId"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "deviceType": {
+            "type": "string",
+            "default": "display"
+          },
+          "ttlSeconds": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3600
+          }
+        }
+      },
+      "PairingCode": {
+        "type": "object",
+        "required": [
+          "id",
+          "locationId",
+          "deviceType",
+          "code",
+          "expiresAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "deviceType": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "consumedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PairingCodeResponse": {
+        "type": "object",
+        "required": [
+          "pairingCode"
+        ],
+        "properties": {
+          "pairingCode": {
+            "$ref": "#/components/schemas/PairingCode"
+          }
+        }
+      },
+      "PairDeviceRequest": {
+        "type": "object",
+        "required": [
+          "code",
+          "platform",
+          "appVersion"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 4
+          },
+          "platform": {
+            "type": "string",
+            "minLength": 1
+          },
+          "appVersion": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string"
+          },
+          "capabilities": {
+            "type": "object"
+          },
+          "configuration": {
+            "type": "object"
+          }
+        }
+      },
+      "PairDeviceResponse": {
+        "type": "object",
+        "required": [
+          "device",
+          "credential"
+        ],
+        "properties": {
+          "device": {
+            "$ref": "#/components/schemas/Device"
+          },
+          "credential": {
+            "type": "string"
+          }
+        }
+      },
+      "DeviceHeartbeatRequest": {
+        "type": "object",
+        "required": [
+          "appVersion"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "appVersion": {
+            "type": "string",
+            "minLength": 1
+          },
+          "capabilities": {
+            "type": "object"
+          }
+        }
+      },
+      "Membership": {
+        "type": "object",
+        "required": [
+          "id",
+          "scope",
+          "memberRef",
+          "role"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "organisation",
+              "location"
+            ]
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "memberRef": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          }
+        }
+      },
+      "TimelineEvent": {
+        "type": "object",
+        "required": [
+          "id",
+          "type",
+          "schemaVersion",
+          "occurredAt",
+          "actorRef",
+          "entityType",
+          "entityId",
+          "data"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "type": "string"
+          },
+          "schemaVersion": {
+            "type": "integer"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "actorRef": {
+            "type": "string"
+          },
+          "deviceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "entityType": {
+            "type": "string"
+          },
+          "entityId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "entityVersion": {
+            "type": "integer"
+          },
+          "commandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "data": {
+            "type": "object"
+          }
+        }
+      },
+      "RealtimeMessage": {
+        "type": "object",
+        "required": [
+          "type",
+          "eventId",
+          "organisationId",
+          "locationId",
+          "entityType",
+          "entityId",
+          "occurredAt",
+          "data"
+        ],
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "eventId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "organisationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "entityType": {
+            "type": "string"
+          },
+          "entityId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "data": {
+            "type": "object"
+          }
+        }
+      },
+      "FloorsResponse": {
+        "type": "object",
+        "required": [
+          "floors"
+        ],
+        "properties": {
+          "floors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Floor"
+            }
+          }
+        }
+      },
+      "ZonesResponse": {
+        "type": "object",
+        "required": [
+          "zones"
+        ],
+        "properties": {
+          "zones": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Zone"
+            }
+          }
+        }
+      },
+      "TablesResponse": {
+        "type": "object",
+        "required": [
+          "tables"
+        ],
+        "properties": {
+          "tables": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Table"
+            }
+          }
+        }
+      },
+      "LocationStateResponse": {
+        "type": "object",
+        "required": [
+          "tables"
+        ],
+        "properties": {
+          "tables": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TableState"
+            }
+          }
+        }
+      },
+      "AssistsResponse": {
+        "type": "object",
+        "required": [
+          "assists"
+        ],
+        "properties": {
+          "assists": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Assist"
+            }
+          }
+        }
+      },
+      "AuditTimelineResponse": {
+        "type": "object",
+        "required": [
+          "events"
+        ],
+        "properties": {
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TimelineEvent"
+            }
+          }
+        }
+      },
+      "LocationSnapshotResponse": {
+        "type": "object",
+        "required": [
+          "organisationId",
+          "locationId",
+          "cursor",
+          "tables",
+          "assists"
+        ],
+        "properties": {
+          "organisationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "tables": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TableState"
+            }
+          },
+          "assists": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Assist"
+            }
+          }
+        }
+      },
+      "SyncEventsResponse": {
+        "type": "object",
+        "required": [
+          "events",
+          "cursor"
+        ],
+        "properties": {
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RealtimeMessage"
+            }
+          },
+          "cursor": {
+            "type": "string"
+          }
+        }
+      },
+      "DevicesResponse": {
+        "type": "object",
+        "required": [
+          "devices"
+        ],
+        "properties": {
+          "devices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Device"
+            }
+          }
+        }
+      },
+      "MembershipsResponse": {
+        "type": "object",
+        "required": [
+          "memberships"
+        ],
+        "properties": {
+          "memberships": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Membership"
+            }
+          }
+        }
+      },
+      "ErrorCode": {
+        "type": "string",
+        "enum": [
+          "validation_failed",
+          "forbidden",
+          "tenant_disabled",
+          "not_found",
+          "version_conflict",
+          "already_occupied",
+          "already_available",
+          "no_active_session",
+          "assist_already_resolved",
+          "idempotency_conflict",
+          "action_not_enabled",
+          "rate_limited",
+          "internal_error"
+        ]
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "$ref": "#/components/schemas/ErrorCode"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "AnalyticsMetric": {
+        "type": "object",
+        "required": [
+          "activeTableCount",
+          "occupancySeconds",
+          "utilisationBasisSeconds",
+          "utilisationRate",
+          "completedSessionCount",
+          "turnoverRate",
+          "avgSessionSeconds",
+          "p50SessionSeconds",
+          "p90SessionSeconds",
+          "assistRequestCount",
+          "avgAssistResponseSeconds",
+          "avgAssistResolutionSeconds",
+          "anomalyCount"
+        ],
+        "properties": {
+          "activeTableCount": {
+            "type": "number"
+          },
+          "occupancySeconds": {
+            "type": "number"
+          },
+          "utilisationBasisSeconds": {
+            "type": "number"
+          },
+          "utilisationRate": {
+            "type": "number"
+          },
+          "completedSessionCount": {
+            "type": "number"
+          },
+          "turnoverRate": {
+            "type": "number"
+          },
+          "avgSessionSeconds": {
+            "type": "number"
+          },
+          "p50SessionSeconds": {
+            "type": "number"
+          },
+          "p90SessionSeconds": {
+            "type": "number"
+          },
+          "assistRequestCount": {
+            "type": "number"
+          },
+          "avgAssistResponseSeconds": {
+            "type": "number"
+          },
+          "avgAssistResolutionSeconds": {
+            "type": "number"
+          },
+          "anomalyCount": {
+            "type": "number"
+          }
+        }
+      },
+      "AnalyticsWindowMetric": {
+        "type": "object",
+        "required": [
+          "windowStart",
+          "windowEnd",
+          "metric"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "windowStart": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "windowEnd": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "metric": {
+            "$ref": "#/components/schemas/AnalyticsMetric"
+          }
+        }
+      },
+      "AnalyticsDataQuality": {
+        "type": "object",
+        "required": [
+          "openSessionCount",
+          "longOpenSessionCount",
+          "impossibleSessionCount",
+          "missingOccupancyCount",
+          "staleDeviceCount",
+          "projectorLagSeconds",
+          "rebuildStatus"
+        ],
+        "properties": {
+          "openSessionCount": {
+            "type": "integer"
+          },
+          "longOpenSessionCount": {
+            "type": "integer"
+          },
+          "impossibleSessionCount": {
+            "type": "integer"
+          },
+          "missingOccupancyCount": {
+            "type": "integer"
+          },
+          "staleDeviceCount": {
+            "type": "integer"
+          },
+          "projectorLagSeconds": {
+            "type": "number"
+          },
+          "rebuildStatus": {
+            "type": "string"
+          }
+        }
+      },
+      "AnalyticsCheckpoint": {
+        "type": "object",
+        "required": [
+          "projectorName",
+          "projectorVersion",
+          "lagSeconds",
+          "rebuildStatus",
+          "updatedAt"
+        ],
+        "properties": {
+          "projectorName": {
+            "type": "string"
+          },
+          "projectorVersion": {
+            "type": "integer"
+          },
+          "cursorOccurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "cursorEventId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "lagSeconds": {
+            "type": "number"
+          },
+          "rebuildStatus": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AnalyticsSummary": {
+        "type": "object",
+        "required": [
+          "location",
+          "date",
+          "today",
+          "dataQuality"
+        ],
+        "properties": {
+          "location": {
+            "$ref": "#/components/schemas/Location"
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "today": {
+            "$ref": "#/components/schemas/AnalyticsWindowMetric"
+          },
+          "currentServicePeriod": {
+            "$ref": "#/components/schemas/AnalyticsWindowMetric"
+          },
+          "checkpoint": {
+            "$ref": "#/components/schemas/AnalyticsCheckpoint"
+          },
+          "dataQuality": {
+            "$ref": "#/components/schemas/AnalyticsDataQuality"
+          }
+        }
+      },
+      "AnalyticsTimePoint": {
+        "type": "object",
+        "required": [
+          "bucketStart",
+          "bucketEnd",
+          "metric"
+        ],
+        "properties": {
+          "bucketStart": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "bucketEnd": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "metric": {
+            "$ref": "#/components/schemas/AnalyticsMetric"
+          }
+        }
+      },
+      "AnalyticsTimeseriesResponse": {
+        "type": "object",
+        "required": [
+          "points"
+        ],
+        "properties": {
+          "points": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnalyticsTimePoint"
+            }
+          }
+        }
+      },
+      "AnalyticsComparisonPoint": {
+        "type": "object",
+        "required": [
+          "groupId",
+          "groupName",
+          "metricDate",
+          "windowStart",
+          "windowEnd",
+          "metric"
+        ],
+        "properties": {
+          "groupId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "groupName": {
+            "type": "string"
+          },
+          "metricDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "windowStart": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "windowEnd": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "metric": {
+            "$ref": "#/components/schemas/AnalyticsMetric"
+          }
+        }
+      },
+      "AnalyticsComparisonResponse": {
+        "type": "object",
+        "required": [
+          "points"
+        ],
+        "properties": {
+          "points": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnalyticsComparisonPoint"
+            }
+          }
+        }
+      },
+      "ServicePeriod": {
+        "type": "object",
+        "required": [
+          "id",
+          "locationId",
+          "name",
+          "daysOfWeek",
+          "startTime",
+          "endTime",
+          "isActive",
+          "version"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "daysOfWeek": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 6
+            }
+          },
+          "startTime": {
+            "type": "string"
+          },
+          "endTime": {
+            "type": "string"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "integer"
+          }
+        }
+      },
+      "ServicePeriodsResponse": {
+        "type": "object",
+        "required": [
+          "servicePeriods"
+        ],
+        "properties": {
+          "servicePeriods": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ServicePeriod"
+            }
+          }
+        }
+      },
+      "ServicePeriodRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "daysOfWeek",
+          "startTime",
+          "endTime"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "daysOfWeek": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 6
+            }
+          },
+          "startTime": {
+            "type": "string"
+          },
+          "endTime": {
+            "type": "string"
+          },
+          "expectedVersion": {
+            "type": "integer"
+          }
+        }
+      },
+      "AnalyticsRebuildRequest": {
+        "type": "object",
+        "required": [
+          "locationId",
+          "from",
+          "to"
+        ],
+        "properties": {
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "from": {
+            "type": "string",
+            "format": "date"
+          },
+          "to": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      }
+    }
+  }
+}

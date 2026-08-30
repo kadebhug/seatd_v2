@@ -1,0 +1,15 @@
+.build
+.git
+.next
+.env
+.env.*
+!.env.example
+node_modules
+coverage
+dist
+.dart_tool
+build
+apps/*/.dart_tool
+apps/*/build
+packages/*/.dart_tool
+packages/*/dist

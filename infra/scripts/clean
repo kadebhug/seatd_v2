@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+printf 'infra clean does not remove Docker volumes automatically\n'

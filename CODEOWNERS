@@ -1,0 +1,18 @@
+# Replace the placeholder owner with the appropriate Git hosting team before
+# branch protection starts enforcing ownership approval.
+* @seatd/engineering
+
+/apps/api/ @seatd/backend
+/apps/worker/ @seatd/backend
+/apps/realtime/ @seatd/backend
+/apps/web/ @seatd/web
+/apps/guest/ @seatd/web
+/apps/waiter/ @seatd/mobile
+/apps/display/ @seatd/mobile
+/packages/api-contract/ @seatd/backend @seatd/web @seatd/mobile
+/packages/event-schema/ @seatd/backend
+/packages/dart-seatd-client/ @seatd/mobile
+/packages/typescript-seatd-client/ @seatd/web
+/infra/ @seatd/platform
+/ops/ @seatd/platform
+/docs/ @seatd/engineering

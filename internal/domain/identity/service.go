@@ -1,0 +1,638 @@
+package identity
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/seatd/seatd/internal/store/db"
+)
+
+const (
+	RolePlatformAdmin     = "platform_admin"
+	RoleOrganisationOwner = "organisation_owner"
+	RoleLocationManager   = "location_manager"
+	RoleWaiter            = "waiter"
+	RoleReadOnly          = "read_only"
+	RoleSupport           = "support"
+
+	PermissionPlatformAdmin      = "platform.admin"
+	PermissionOrganisationManage = "organisation.manage"
+	PermissionLocationManage     = "location.manage"
+	PermissionLayoutRead         = "layout.read"
+	PermissionLayoutWrite        = "layout.write"
+	PermissionOperationsRead     = "operations.read"
+	PermissionOperationsWrite    = "operations.write"
+	PermissionDeviceManage       = "device.manage"
+	PermissionAuditRead          = "audit.read"
+	PermissionAnalyticsRead      = "analytics.read"
+
+	DeviceTypeWaiterMobile  = "waiter_mobile"
+	DeviceTypeManagerTablet = "manager_tablet"
+	DeviceTypeDisplay       = "display"
+	DeviceTypeHostDevice    = "host_device"
+
+	DeviceTrustPending = "pending"
+	DeviceTrustTrusted = "trusted"
+	DeviceTrustRevoked = "revoked"
+)
+
+var (
+	ErrNotFound       = errors.New("not found")
+	ErrUnauthorized   = errors.New("unauthorized")
+	ErrAlreadyRevoked = errors.New("already revoked")
+	ErrValidation     = errors.New("validation failed")
+)
+
+type Service struct {
+	pool *pgxpool.Pool
+}
+
+func NewService(pool *pgxpool.Pool) *Service {
+	return &Service{pool: pool}
+}
+
+type ExternalIdentity struct {
+	Issuer  string
+	Subject string
+	Email   string
+}
+
+type UserProfileParams struct {
+	DisplayName string
+	Email       string
+	External    ExternalIdentity
+}
+
+type UserProfileResult struct {
+	User     db.UserProfile
+	External db.ExternalIdentity
+}
+
+func (s *Service) CreateUserProfile(ctx context.Context, arg UserProfileParams) (UserProfileResult, error) {
+	var result UserProfileResult
+	err := s.inAdminTx(ctx, func(q *db.Queries) error {
+		user, err := q.CreateUserProfile(ctx, db.CreateUserProfileParams{
+			DisplayName: arg.DisplayName,
+			Email:       nullableText(arg.Email),
+		})
+		if err != nil {
+			return fmt.Errorf("creating user profile: %w", err)
+		}
+		external, err := q.LinkExternalIdentity(ctx, db.LinkExternalIdentityParams{
+			UserProfileID: user.ID,
+			Issuer:        arg.External.Issuer,
+			Subject:       arg.External.Subject,
+			Email:         nullableText(arg.External.Email),
+		})
+		if err != nil {
+			return fmt.Errorf("linking external identity: %w", err)
+		}
+		result = UserProfileResult{User: user, External: external}
+		return nil
+	})
+	return result, err
+}
+
+func (s *Service) HasOrganisationPermission(
+	ctx context.Context,
+	organisationID uuid.UUID,
+	userProfileID uuid.UUID,
+	permission string,
+) (bool, error) {
+	var allowed bool
+	err := s.inTenantTx(ctx, organisationID, uuid.Nil, func(q *db.Queries) error {
+		value, err := q.UserHasOrganisationPermission(ctx, db.UserHasOrganisationPermissionParams{
+			OrganisationID: organisationID,
+			UserProfileID:  uuid.NullUUID{UUID: userProfileID, Valid: true},
+			PermissionName: permission,
+		})
+		if err != nil {
+			return fmt.Errorf("checking organisation permission: %w", err)
+		}
+		allowed = value
+		return nil
+	})
+	return allowed, err
+}
+
+func (s *Service) HasLocationPermission(
+	ctx context.Context,
+	organisationID uuid.UUID,
+	locationID uuid.UUID,
+	userProfileID uuid.UUID,
+	permission string,
+) (bool, error) {
+	var allowed bool
+	err := s.inTenantTx(ctx, organisationID, locationID, func(q *db.Queries) error {
+		value, err := q.UserHasLocationPermission(ctx, db.UserHasLocationPermissionParams{
+			OrganisationID: organisationID,
+			LocationID:     locationID,
+			UserProfileID:  uuid.NullUUID{UUID: userProfileID, Valid: true},
+			PermissionName: permission,
+		})
+		if err != nil {
+			return fmt.Errorf("checking location permission: %w", err)
+		}
+		allowed = value
+		return nil
+	})
+	return allowed, err
+}
+
+type RegisterDeviceParams struct {
+	OrganisationID uuid.UUID
+	LocationID     uuid.UUID
+	UserProfileID  uuid.UUID
+	DeviceType     string
+	Platform       string
+	AppVersion     string
+	Name           string
+	Capabilities   json.RawMessage
+	Configuration  json.RawMessage
+	HeartbeatEvery time.Duration
+	ExpiresAt      time.Time
+}
+
+type RegisterDeviceResult struct {
+	Device     db.Device
+	Credential db.DeviceCredential
+	Secret     string
+}
+
+func (s *Service) RegisterDevice(ctx context.Context, arg RegisterDeviceParams) (RegisterDeviceResult, error) {
+	arg = normalizeRegisterDeviceParams(arg)
+	if err := validateRegisterDeviceParams(arg); err != nil {
+		return RegisterDeviceResult{}, err
+	}
+	secret, err := GenerateOpaqueSecret()
+	if err != nil {
+		return RegisterDeviceResult{}, fmt.Errorf("generating device credential: %w", err)
+	}
+	prefix, err := LookupPrefix(secret)
+	if err != nil {
+		return RegisterDeviceResult{}, err
+	}
+	hash, err := HashSecret(secret)
+	if err != nil {
+		return RegisterDeviceResult{}, err
+	}
+
+	var result RegisterDeviceResult
+	err = s.inTenantTx(ctx, arg.OrganisationID, arg.LocationID, func(q *db.Queries) error {
+		device, err := q.RegisterDevice(ctx, db.RegisterDeviceParams{
+			OrganisationID:           arg.OrganisationID,
+			LocationID:               nullableUUID(arg.LocationID),
+			UserProfileID:            nullableUUID(arg.UserProfileID),
+			DeviceType:               arg.DeviceType,
+			Platform:                 arg.Platform,
+			AppVersion:               arg.AppVersion,
+			Name:                     nullableText(arg.Name),
+			Capabilities:             arg.Capabilities,
+			Configuration:            arg.Configuration,
+			HeartbeatIntervalSeconds: int32(arg.HeartbeatEvery / time.Second),
+		})
+		if err != nil {
+			return fmt.Errorf("registering device: %w", err)
+		}
+		credential, err := q.CreateDeviceCredential(ctx, db.CreateDeviceCredentialParams{
+			OrganisationID: arg.OrganisationID,
+			DeviceID:       device.ID,
+			LookupPrefix:   prefix,
+			CredentialHash: hash,
+			ExpiresAt:      nullableTime(arg.ExpiresAt),
+		})
+		if err != nil {
+			return fmt.Errorf("creating device credential: %w", err)
+		}
+		result = RegisterDeviceResult{Device: device, Credential: credential, Secret: secret}
+		return nil
+	})
+	return result, err
+}
+
+type CreatePairingCodeParams struct {
+	OrganisationID uuid.UUID
+	LocationID     uuid.UUID
+	ActorRef       string
+	DeviceType     string
+	TTL            time.Duration
+}
+
+type CreatePairingCodeResult struct {
+	PairingCode db.DevicePairingCode
+	Code        string
+}
+
+func (s *Service) CreatePairingCode(ctx context.Context, arg CreatePairingCodeParams) (CreatePairingCodeResult, error) {
+	arg.ActorRef = strings.TrimSpace(arg.ActorRef)
+	if arg.OrganisationID == uuid.Nil || arg.LocationID == uuid.Nil || arg.ActorRef == "" {
+		return CreatePairingCodeResult{}, ErrValidation
+	}
+	if arg.DeviceType == "" {
+		arg.DeviceType = DeviceTypeDisplay
+	}
+	if !validDeviceType(arg.DeviceType) {
+		return CreatePairingCodeResult{}, ErrValidation
+	}
+	if arg.TTL <= 0 {
+		arg.TTL = 10 * time.Minute
+	}
+	if arg.TTL > time.Hour {
+		return CreatePairingCodeResult{}, ErrValidation
+	}
+	code, err := GeneratePairingCode()
+	if err != nil {
+		return CreatePairingCodeResult{}, fmt.Errorf("generating pairing code: %w", err)
+	}
+	prefix, err := PairingCodeLookupPrefix(code)
+	if err != nil {
+		return CreatePairingCodeResult{}, err
+	}
+	hash, err := HashSecret(NormalizePairingCode(code))
+	if err != nil {
+		return CreatePairingCodeResult{}, err
+	}
+
+	var result CreatePairingCodeResult
+	err = s.inTenantTx(ctx, arg.OrganisationID, arg.LocationID, func(q *db.Queries) error {
+		pairingCode, err := q.CreateDevicePairingCode(ctx, db.CreateDevicePairingCodeParams{
+			OrganisationID:          arg.OrganisationID,
+			LocationID:              arg.LocationID,
+			CreatedBy:               arg.ActorRef,
+			DeviceType:              arg.DeviceType,
+			PairingCodeLookupPrefix: prefix,
+			PairingCodeHash:         hash,
+			ExpiresAt:               pgtype.Timestamptz{Time: time.Now().Add(arg.TTL), Valid: true},
+		})
+		if err != nil {
+			return fmt.Errorf("creating device pairing code: %w", err)
+		}
+		result = CreatePairingCodeResult{PairingCode: pairingCode, Code: code}
+		return nil
+	})
+	return result, err
+}
+
+type PairDeviceParams struct {
+	Code          string
+	Platform      string
+	AppVersion    string
+	Name          string
+	Capabilities  json.RawMessage
+	Configuration json.RawMessage
+}
+
+func (s *Service) PairDevice(ctx context.Context, arg PairDeviceParams) (RegisterDeviceResult, error) {
+	code := NormalizePairingCode(arg.Code)
+	prefix, err := PairingCodeLookupPrefix(code)
+	if err != nil {
+		return RegisterDeviceResult{}, ErrUnauthorized
+	}
+	arg.Platform = strings.TrimSpace(arg.Platform)
+	arg.AppVersion = strings.TrimSpace(arg.AppVersion)
+	arg.Name = strings.TrimSpace(arg.Name)
+	if arg.Platform == "" || arg.AppVersion == "" {
+		return RegisterDeviceResult{}, ErrValidation
+	}
+	arg.Capabilities = defaultJSONObject(arg.Capabilities)
+	arg.Configuration = defaultJSONObject(arg.Configuration)
+	if !jsonObject(arg.Capabilities) || !jsonObject(arg.Configuration) {
+		return RegisterDeviceResult{}, ErrValidation
+	}
+
+	secret, err := GenerateOpaqueSecret()
+	if err != nil {
+		return RegisterDeviceResult{}, fmt.Errorf("generating device credential: %w", err)
+	}
+	credentialPrefix, err := LookupPrefix(secret)
+	if err != nil {
+		return RegisterDeviceResult{}, err
+	}
+	credentialHash, err := HashSecret(secret)
+	if err != nil {
+		return RegisterDeviceResult{}, err
+	}
+
+	var result RegisterDeviceResult
+	err = s.inAdminTx(ctx, func(q *db.Queries) error {
+		pairingCode, err := q.GetDevicePairingCodeByPrefix(ctx, prefix)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrUnauthorized
+			}
+			return fmt.Errorf("getting device pairing code: %w", err)
+		}
+		ok, err := SecretMatches(code, pairingCode.PairingCodeHash)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return ErrUnauthorized
+		}
+		device, err := q.RegisterDevice(ctx, db.RegisterDeviceParams{
+			OrganisationID:           pairingCode.OrganisationID,
+			LocationID:               nullableUUID(pairingCode.LocationID),
+			UserProfileID:            uuid.NullUUID{},
+			DeviceType:               pairingCode.DeviceType,
+			Platform:                 arg.Platform,
+			AppVersion:               arg.AppVersion,
+			Name:                     nullableText(arg.Name),
+			Capabilities:             arg.Capabilities,
+			Configuration:            arg.Configuration,
+			HeartbeatIntervalSeconds: 60,
+		})
+		if err != nil {
+			return fmt.Errorf("registering paired device: %w", err)
+		}
+		if _, err := q.ConsumeDevicePairingCode(ctx, db.ConsumeDevicePairingCodeParams{
+			ID:                 pairingCode.ID,
+			ConsumedByDeviceID: nullableUUID(device.ID),
+		}); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrUnauthorized
+			}
+			return fmt.Errorf("consuming device pairing code: %w", err)
+		}
+		device, err = q.TrustDevice(ctx, db.TrustDeviceParams{
+			ID:             device.ID,
+			OrganisationID: pairingCode.OrganisationID,
+		})
+		if err != nil {
+			return fmt.Errorf("trusting paired device: %w", err)
+		}
+		credential, err := q.CreateDeviceCredential(ctx, db.CreateDeviceCredentialParams{
+			OrganisationID: pairingCode.OrganisationID,
+			DeviceID:       device.ID,
+			LookupPrefix:   credentialPrefix,
+			CredentialHash: credentialHash,
+			ExpiresAt:      pgtype.Timestamptz{},
+		})
+		if err != nil {
+			return fmt.Errorf("creating paired device credential: %w", err)
+		}
+		result = RegisterDeviceResult{Device: device, Credential: credential, Secret: secret}
+		return nil
+	})
+	return result, err
+}
+
+type HeartbeatParams struct {
+	Secret       string
+	AppVersion   string
+	Capabilities json.RawMessage
+}
+
+func (s *Service) RecordHeartbeat(ctx context.Context, arg HeartbeatParams) (db.Device, error) {
+	arg.AppVersion = strings.TrimSpace(arg.AppVersion)
+	if arg.AppVersion == "" {
+		return db.Device{}, ErrValidation
+	}
+	arg.Capabilities = defaultJSONObject(arg.Capabilities)
+	if !jsonObject(arg.Capabilities) {
+		return db.Device{}, ErrValidation
+	}
+	device, err := s.AuthenticateDeviceCredential(ctx, arg.Secret)
+	if err != nil {
+		return db.Device{}, err
+	}
+	err = s.inTenantTx(ctx, device.OrganisationID, nullableUUIDValue(device.LocationID), func(q *db.Queries) error {
+		updated, err := q.RecordDeviceHeartbeat(ctx, db.RecordDeviceHeartbeatParams{
+			ID:             device.ID,
+			OrganisationID: device.OrganisationID,
+			AppVersion:     arg.AppVersion,
+			Capabilities:   arg.Capabilities,
+		})
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrUnauthorized
+			}
+			return fmt.Errorf("recording device heartbeat: %w", err)
+		}
+		device = updated
+		return nil
+	})
+	return device, err
+}
+
+func (s *Service) ListDevices(ctx context.Context, organisationID, locationID uuid.UUID) ([]db.Device, error) {
+	var devices []db.Device
+	err := s.inTenantTx(ctx, organisationID, locationID, func(q *db.Queries) error {
+		var err error
+		if locationID == uuid.Nil {
+			devices, err = q.ListDevicesByOrganisation(ctx, organisationID)
+		} else {
+			devices, err = q.ListDevicesByLocation(ctx, db.ListDevicesByLocationParams{
+				OrganisationID: organisationID,
+				LocationID:     nullableUUID(locationID),
+			})
+		}
+		if err != nil {
+			return fmt.Errorf("listing devices: %w", err)
+		}
+		return nil
+	})
+	return devices, err
+}
+
+func (s *Service) TrustDevice(ctx context.Context, organisationID, deviceID uuid.UUID) (db.Device, error) {
+	var device db.Device
+	err := s.inTenantTx(ctx, organisationID, uuid.Nil, func(q *db.Queries) error {
+		updated, err := q.TrustDevice(ctx, db.TrustDeviceParams{ID: deviceID, OrganisationID: organisationID})
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrNotFound
+			}
+			return fmt.Errorf("trusting device: %w", err)
+		}
+		device = updated
+		return nil
+	})
+	return device, err
+}
+
+func (s *Service) RevokeDevice(ctx context.Context, organisationID, deviceID uuid.UUID) (db.Device, error) {
+	var device db.Device
+	err := s.inTenantTx(ctx, organisationID, uuid.Nil, func(q *db.Queries) error {
+		if err := q.RevokeDeviceCredentials(ctx, db.RevokeDeviceCredentialsParams{
+			OrganisationID: organisationID,
+			DeviceID:       deviceID,
+		}); err != nil {
+			return fmt.Errorf("revoking device credentials: %w", err)
+		}
+		updated, err := q.RevokeDevice(ctx, db.RevokeDeviceParams{ID: deviceID, OrganisationID: organisationID})
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrAlreadyRevoked
+			}
+			return fmt.Errorf("revoking device: %w", err)
+		}
+		device = updated
+		return nil
+	})
+	return device, err
+}
+
+func (s *Service) AuthenticateDeviceCredential(ctx context.Context, secret string) (db.Device, error) {
+	prefix, err := LookupPrefix(secret)
+	if err != nil {
+		return db.Device{}, err
+	}
+
+	var device db.Device
+	err = s.inAdminTx(ctx, func(q *db.Queries) error {
+		row, err := q.GetDeviceCredentialByPrefix(ctx, prefix)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrUnauthorized
+			}
+			return fmt.Errorf("getting device credential: %w", err)
+		}
+		ok, err := SecretMatches(secret, row.DeviceCredential.CredentialHash)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return ErrUnauthorized
+		}
+		if _, err := q.MarkDeviceSeen(ctx, db.MarkDeviceSeenParams{
+			ID:             row.Device.ID,
+			OrganisationID: row.Device.OrganisationID,
+		}); err != nil {
+			return fmt.Errorf("marking device seen: %w", err)
+		}
+		if err := q.TouchDeviceCredential(ctx, row.DeviceCredential.ID); err != nil {
+			return fmt.Errorf("touching device credential: %w", err)
+		}
+		device = row.Device
+		return nil
+	})
+	return device, err
+}
+
+func (s *Service) inAdminTx(ctx context.Context, fn func(*db.Queries) error) error {
+	return s.inTx(ctx, func(tx pgx.Tx, q *db.Queries) error {
+		if _, err := tx.Exec(ctx, "SELECT set_config('seatd.platform_admin', 'true', true)"); err != nil {
+			return fmt.Errorf("setting platform admin context: %w", err)
+		}
+		return fn(q)
+	})
+}
+
+func (s *Service) inTenantTx(ctx context.Context, organisationID, locationID uuid.UUID, fn func(*db.Queries) error) error {
+	return s.inTx(ctx, func(tx pgx.Tx, q *db.Queries) error {
+		locationValue := ""
+		if locationID != uuid.Nil {
+			locationValue = locationID.String()
+		}
+		if _, err := tx.Exec(ctx, `
+SELECT set_config('seatd.platform_admin', 'false', true),
+       set_config('seatd.current_organisation_id', $1::text, true),
+       set_config('seatd.current_location_id', $2::text, true)
+`, organisationID.String(), locationValue); err != nil {
+			return fmt.Errorf("setting tenant context: %w", err)
+		}
+		return fn(q)
+	})
+}
+
+func (s *Service) inTx(ctx context.Context, fn func(pgx.Tx, *db.Queries) error) error {
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return fmt.Errorf("beginning transaction: %w", err)
+	}
+	queries := db.New(tx)
+	if err := fn(tx, queries); err != nil {
+		if rollbackErr := tx.Rollback(ctx); rollbackErr != nil && !errors.Is(rollbackErr, pgx.ErrTxClosed) {
+			return errors.Join(err, fmt.Errorf("rolling back transaction: %w", rollbackErr))
+		}
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("committing transaction: %w", err)
+	}
+	return nil
+}
+
+func nullableText(value string) pgtype.Text {
+	if value == "" {
+		return pgtype.Text{}
+	}
+	return pgtype.Text{String: value, Valid: true}
+}
+
+func nullableUUID(value uuid.UUID) uuid.NullUUID {
+	if value == uuid.Nil {
+		return uuid.NullUUID{}
+	}
+	return uuid.NullUUID{UUID: value, Valid: true}
+}
+
+func nullableTime(value time.Time) pgtype.Timestamptz {
+	if value.IsZero() {
+		return pgtype.Timestamptz{}
+	}
+	return pgtype.Timestamptz{Time: value, Valid: true}
+}
+
+func nullableUUIDValue(value uuid.NullUUID) uuid.UUID {
+	if !value.Valid {
+		return uuid.Nil
+	}
+	return value.UUID
+}
+
+func normalizeRegisterDeviceParams(arg RegisterDeviceParams) RegisterDeviceParams {
+	arg.DeviceType = strings.TrimSpace(arg.DeviceType)
+	arg.Platform = strings.TrimSpace(arg.Platform)
+	arg.AppVersion = strings.TrimSpace(arg.AppVersion)
+	arg.Name = strings.TrimSpace(arg.Name)
+	arg.Capabilities = defaultJSONObject(arg.Capabilities)
+	arg.Configuration = defaultJSONObject(arg.Configuration)
+	if arg.HeartbeatEvery <= 0 {
+		arg.HeartbeatEvery = time.Minute
+	}
+	return arg
+}
+
+func validateRegisterDeviceParams(arg RegisterDeviceParams) error {
+	if arg.OrganisationID == uuid.Nil || !validDeviceType(arg.DeviceType) || arg.Platform == "" || arg.AppVersion == "" {
+		return ErrValidation
+	}
+	if !jsonObject(arg.Capabilities) || !jsonObject(arg.Configuration) {
+		return ErrValidation
+	}
+	if arg.HeartbeatEvery < time.Second || arg.HeartbeatEvery > time.Hour {
+		return ErrValidation
+	}
+	return nil
+}
+
+func validDeviceType(value string) bool {
+	switch value {
+	case DeviceTypeWaiterMobile, DeviceTypeManagerTablet, DeviceTypeDisplay, DeviceTypeHostDevice:
+		return true
+	default:
+		return false
+	}
+}
+
+func defaultJSONObject(value json.RawMessage) json.RawMessage {
+	if len(value) == 0 {
+		return json.RawMessage(`{}`)
+	}
+	return value
+}
+
+func jsonObject(value json.RawMessage) bool {
+	var decoded map[string]any
+	return json.Unmarshal(value, &decoded) == nil
+}

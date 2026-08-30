@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+dart pub get --directory packages/dart-seatd-client

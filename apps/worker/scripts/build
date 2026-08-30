@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+mkdir -p .build
+./scripts/go-command.sh go build -ldflags "-X main.version=${SEATD_VERSION:-dev} -X main.commit=${SEATD_COMMIT:-unknown} -X main.date=${SEATD_BUILD_DATE:-unknown}" -o .build/worker ./apps/worker/cmd/worker

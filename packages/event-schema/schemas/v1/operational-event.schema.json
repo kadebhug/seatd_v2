@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.seatd.local/events/v1/operational-event.schema.json",
+  "title": "Seatd Operational Event",
+  "type": "object",
+  "required": [
+    "id",
+    "type",
+    "schemaVersion",
+    "occurredAt",
+    "organisationId",
+    "locationId",
+    "entityType",
+    "entityId",
+    "data"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "table.occupied",
+        "table.cleared",
+        "session.opened",
+        "session.closed",
+        "assist.requested",
+        "assist.acknowledged",
+        "assist.resolved",
+        "assist.cancelled",
+        "device.registered",
+        "device.revoked"
+      ]
+    },
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "organisationId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "locationId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "actorRef": {
+      "type": "string",
+      "minLength": 1
+    },
+    "deviceId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "entityType": {
+      "type": "string",
+      "minLength": 1
+    },
+    "entityId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "entityVersion": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "commandId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "correlationId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "data": {
+      "type": "object"
+    }
+  }
+}

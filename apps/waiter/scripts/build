@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+(cd apps/waiter && flutter build web --debug --no-pub --target lib/main.dart)

@@ -1,0 +1,31 @@
+name: package
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  containers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          push: false
+          tags: seatd/api:ci
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/worker/Dockerfile
+          push: false
+          tags: seatd/worker:ci
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/realtime/Dockerfile
+          push: false
+          tags: seatd/realtime:ci
