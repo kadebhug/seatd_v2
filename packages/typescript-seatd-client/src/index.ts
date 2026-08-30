@@ -40,6 +40,15 @@ export const pairDeviceEndpoint = "/v1/devices/pair";
 export const deviceHeartbeatEndpoint = "/v1/devices/heartbeat";
 export const displaySnapshotEndpoint = "/v1/devices/display-snapshot";
 export const deviceRevokeEndpoint = "/v1/devices/{id}/revoke";
+export const integrationsEndpoint = "/v1/integrations";
+export const integrationHealthEndpoint = "/v1/integrations/{id}/health";
+export const integrationMappingsEndpoint = "/v1/integrations/{id}/mappings";
+export const integrationMappingEndpoint = "/v1/integrations/{id}/mappings/{mappingId}";
+export const integrationWebhooksEndpoint = "/v1/integrations/{id}/webhooks";
+export const integrationWebhookReplayEndpoint = "/v1/integrations/{id}/webhooks/{webhookId}/replay";
+export const integrationDiscrepanciesEndpoint = "/v1/integrations/{id}/discrepancies";
+export const integrationReconcileEndpoint = "/v1/integrations/{id}/reconcile";
+export const integrationWebhookEndpoint = "/v1/integrations/{vendor}/webhooks";
 export const membershipsEndpoint = "/v1/memberships";
 export const occupyTableEndpoint = "/v1/tables/{id}/occupy";
 export const clearTableEndpoint = "/v1/tables/{id}/clear";
@@ -284,6 +293,108 @@ export interface PairDeviceResponse {
 export interface DeviceHeartbeatRequest {
   appVersion: string;
   capabilities?: Record<string, unknown>;
+}
+
+export interface IntegrationConnection {
+  id: string;
+  organisationId: string;
+  locationId: string;
+  vendor: string;
+  displayName: string;
+  credentialRef: string;
+  status: "connected" | "disconnected" | "degraded";
+  capabilities: Record<string, unknown>;
+  config: Record<string, unknown>;
+  lastSuccessfulSyncAt?: string;
+  lastError?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface IntegrationHealth {
+  status: string;
+  message?: string;
+}
+
+export interface IntegrationTableMapping {
+  id: string;
+  connectionId: string;
+  externalTableId: string;
+  tableId?: string;
+  externalLabel?: string;
+  status: "mapped" | "unmapped" | "ignored";
+  lastSeenAt?: string;
+}
+
+export interface UpdateIntegrationMappingRequest {
+  tableId?: string;
+  status: IntegrationTableMapping["status"];
+}
+
+export interface IntegrationWebhook {
+  id: string;
+  connectionId: string;
+  vendor: string;
+  externalEventId: string;
+  receivedAt: string;
+  signatureValid: boolean;
+  payload: Record<string, unknown>;
+  processingState: string;
+  attempts: number;
+  lastError?: string;
+  processedAt?: string;
+}
+
+export interface IntegrationWebhookResult {
+  webhook: IntegrationWebhook;
+  applied: boolean;
+}
+
+export interface IntegrationDiscrepancy {
+  id: string;
+  connectionId: string;
+  reconciliationRunId: string;
+  mappingId?: string;
+  tableId?: string;
+  externalTableId: string;
+  type: string;
+  seatdState?: string;
+  externalState?: string;
+  resolutionState: string;
+  details: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface IntegrationReconciliationRun {
+  id: string;
+  connectionId: string;
+  startedAt: string;
+  completedAt?: string;
+  status: string;
+  checkedCount: number;
+  discrepancyCount: number;
+  autoCorrectedCount: number;
+  lastError?: string;
+}
+
+export interface IntegrationsResponse {
+  integrations: IntegrationConnection[];
+}
+
+export interface IntegrationMappingsResponse {
+  mappings: IntegrationTableMapping[];
+}
+
+export interface IntegrationWebhooksResponse {
+  webhooks: IntegrationWebhook[];
+}
+
+export interface IntegrationDiscrepanciesResponse {
+  discrepancies: IntegrationDiscrepancy[];
+}
+
+export interface IntegrationReconciliationResponse {
+  reconciliationRun: IntegrationReconciliationRun;
 }
 
 export interface Membership {

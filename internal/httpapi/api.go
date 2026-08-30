@@ -23,6 +23,7 @@ import (
 	"github.com/kadebhug/seatd_v2/internal/domain/analytics"
 	"github.com/kadebhug/seatd_v2/internal/domain/configuration"
 	"github.com/kadebhug/seatd_v2/internal/domain/identity"
+	"github.com/kadebhug/seatd_v2/internal/domain/integrations"
 	"github.com/kadebhug/seatd_v2/internal/domain/operations"
 	"github.com/kadebhug/seatd_v2/internal/store/db"
 )
@@ -43,10 +44,12 @@ type API struct {
 	ident     *identity.Service
 	ops       *operations.Service
 	analytics *analytics.Service
+	ints      *integrations.Service
 	guestRL   *guestRateLimiter
 }
 
 func NewHandler(cfg app.Config, logger *slog.Logger, pool *pgxpool.Pool) http.Handler {
+	opsService := operations.NewService(pool)
 	api := &API{
 		cfg:       cfg,
 		logger:    logger,
@@ -54,8 +57,9 @@ func NewHandler(cfg app.Config, logger *slog.Logger, pool *pgxpool.Pool) http.Ha
 		queries:   db.New(pool),
 		config:    configuration.NewService(pool),
 		ident:     identity.NewService(pool),
-		ops:       operations.NewService(pool),
+		ops:       opsService,
 		analytics: analytics.NewService(pool),
+		ints:      integrations.NewService(pool, opsService),
 		guestRL:   newGuestRateLimiter(time.Minute, 6),
 	}
 
@@ -107,6 +111,15 @@ func NewHandler(cfg app.Config, logger *slog.Logger, pool *pgxpool.Pool) http.Ha
 	mux.HandleFunc("POST /v1/devices/heartbeat", api.deviceHeartbeat)
 	mux.HandleFunc("GET /v1/devices/display-snapshot", api.getDisplaySnapshot)
 	mux.HandleFunc("POST /v1/devices/{id}/revoke", api.revokeDevice)
+	mux.HandleFunc("GET /v1/integrations", api.listIntegrations)
+	mux.HandleFunc("GET /v1/integrations/{id}/health", api.getIntegrationHealth)
+	mux.HandleFunc("GET /v1/integrations/{id}/mappings", api.listIntegrationMappings)
+	mux.HandleFunc("PUT /v1/integrations/{id}/mappings/{mappingId}", api.updateIntegrationMapping)
+	mux.HandleFunc("GET /v1/integrations/{id}/webhooks", api.listIntegrationWebhooks)
+	mux.HandleFunc("POST /v1/integrations/{id}/webhooks/{webhookId}/replay", api.replayIntegrationWebhook)
+	mux.HandleFunc("GET /v1/integrations/{id}/discrepancies", api.listIntegrationDiscrepancies)
+	mux.HandleFunc("POST /v1/integrations/{id}/reconcile", api.reconcileIntegration)
+	mux.HandleFunc("POST /v1/integrations/{vendor}/webhooks", api.receiveIntegrationWebhook)
 	mux.HandleFunc("GET /v1/memberships", api.listMemberships)
 	mux.HandleFunc("POST /v1/tables/{id}/occupy", api.occupyTable)
 	mux.HandleFunc("POST /v1/tables/{id}/clear", api.clearTable)

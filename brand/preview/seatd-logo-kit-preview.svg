@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" width="1600" height="1000">
+<rect width="1600" height="1000" fill="#24231F"/>
+<rect x="24" y="24" width="760" height="390" rx="20" fill="#F3EEE4"/>
+<g transform="translate(78 112) scale(1.35)">
+  <circle cx="64" cy="22" r="14" fill="#F05A3C"/>
+  <path fill="#F05A3C" d="M22 40C29 34 40 30 49 29C52 40 57 46 64 46C71 46 76 40 79 29C89 30 99 34 106 40C109 43 110 47 110 52V65C94 60 79 58 64 58C49 58 34 60 18 65V52C18 47 19 43 22 40Z"/>
+  <path fill="#141411" d="M18 74C34 69 49 67 64 67C79 67 94 69 110 74V84C110 92 105 97 98 99C91 102 85 103 78 104C75 93 70 88 64 88C58 88 53 93 50 104C43 103 37 102 30 99C23 97 18 92 18 84V74Z"/>
+  <circle cx="64" cy="110" r="14" fill="#141411"/>
+</g>
+<text x="282" y="266" fill="#141411" font-family="Nimbus Sans, Arial, sans-serif" font-size="142" font-weight="700" letter-spacing="-7">seatd</text>
+<text x="76" y="372" fill="#141411" opacity=".58" font-family="Nimbus Sans, Arial, sans-serif" font-size="18" font-weight="700" letter-spacing="4">PRIMARY LOCKUP / BONE</text>
+
+<rect x="808" y="24" width="768" height="390" rx="20" fill="#141411"/>
+<g transform="translate(862 112) scale(1.35)">
+  <circle cx="64" cy="22" r="14" fill="#F05A3C"/>
+  <path fill="#F05A3C" d="M22 40C29 34 40 30 49 29C52 40 57 46 64 46C71 46 76 40 79 29C89 30 99 34 106 40C109 43 110 47 110 52V65C94 60 79 58 64 58C49 58 34 60 18 65V52C18 47 19 43 22 40Z"/>
+  <path fill="#F3EEE4" d="M18 74C34 69 49 67 64 67C79 67 94 69 110 74V84C110 92 105 97 98 99C91 102 85 103 78 104C75 93 70 88 64 88C58 88 53 93 50 104C43 103 37 102 30 99C23 97 18 92 18 84V74Z"/>
+  <circle cx="64" cy="110" r="14" fill="#F3EEE4"/>
+</g>
+<text x="1066" y="266" fill="#F3EEE4" font-family="Nimbus Sans, Arial, sans-serif" font-size="142" font-weight="700" letter-spacing="-7">seatd</text>
+<text x="860" y="372" fill="#F3EEE4" opacity=".58" font-family="Nimbus Sans, Arial, sans-serif" font-size="18" font-weight="700" letter-spacing="4">REVERSE LOCKUP / INK</text>
+
+<rect x="24" y="438" width="490" height="538" rx="20" fill="#0D0D0B"/>
+<text x="66" y="490" fill="#F3EEE4" font-family="Nimbus Sans, Arial, sans-serif" font-size="18" font-weight="700" letter-spacing="4">APP ICONS</text>
+<rect x="66" y="546" width="176" height="176" rx="42" fill="#F3EEE4"/>
+<g transform="translate(85 563) scale(1.08)">
+  <circle cx="64" cy="22" r="14" fill="#F05A3C"/>
+  <path fill="#F05A3C" d="M22 40C29 34 40 30 49 29C52 40 57 46 64 46C71 46 76 40 79 29C89 30 99 34 106 40C109 43 110 47 110 52V65C94 60 79 58 64 58C49 58 34 60 18 65V52C18 47 19 43 22 40Z"/>
+  <path fill="#141411" d="M18 74C34 69 49 67 64 67C79 67 94 69 110 74V84C110 92 105 97 98 99C91 102 85 103 78 104C75 93 70 88 64 88C58 88 53 93 50 104C43 103 37 102 30 99C23 97 18 92 18 84V74Z"/>
+  <circle cx="64" cy="110" r="14" fill="#141411"/>
+</g>
+<rect x="280" y="546" width="176" height="176" rx="42" fill="#141411" stroke="#45443E"/>
+<g transform="translate(299 563) scale(1.08)">
+  <circle cx="64" cy="22" r="14" fill="#F05A3C"/>
+  <path fill="#F05A3C" d="M22 40C29 34 40 30 49 29C52 40 57 46 64 46C71 46 76 40 79 29C89 30 99 34 106 40C109 43 110 47 110 52V65C94 60 79 58 64 58C49 58 34 60 18 65V52C18 47 19 43 22 40Z"/>
+  <path fill="#F3EEE4" d="M18 74C34 69 49 67 64 67C79 67 94 69 110 74V84C110 92 105 97 98 99C91 102 85 103 78 104C75 93 70 88 64 88C58 88 53 93 50 104C43 103 37 102 30 99C23 97 18 92 18 84V74Z"/>
+  <circle cx="64" cy="110" r="14" fill="#F3EEE4"/>
+</g>
+<circle cx="154" cy="829" r="54" fill="#2F7D65"/>
+<circle cx="261" cy="829" r="54" fill="#F05A3C"/>
+<circle cx="368" cy="829" r="54" fill="#D99A2B"/>
+<text x="66" y="930" fill="#F3EEE4" opacity=".58" font-family="Nimbus Sans, Arial, sans-serif" font-size="16" font-weight="700" letter-spacing="2">AVAILABLE  OCCUPIED  ATTENTION</text>
+
+<rect x="538" y="438" width="1038" height="538" rx="20" fill="#F3EEE4"/>
+<text x="584" y="490" fill="#141411" font-family="Nimbus Sans, Arial, sans-serif" font-size="18" font-weight="700" letter-spacing="4">PLATFORM SYSTEM</text>
+<g font-family="Nimbus Sans, Arial, sans-serif" font-size="25" font-weight="700" fill="#141411">
+  <rect x="584" y="536" width="286" height="118" rx="18" fill="#FFFFFF"/><text x="620" y="608">Owner</text><g transform="translate(764 551) scale(0.65)">
+  <circle cx="64" cy="22" r="14" fill="#F05A3C"/>
+  <path fill="#F05A3C" d="M22 40C29 34 40 30 49 29C52 40 57 46 64 46C71 46 76 40 79 29C89 30 99 34 106 40C109 43 110 47 110 52V65C94 60 79 58 64 58C49 58 34 60 18 65V52C18 47 19 43 22 40Z"/>
+  <path fill="#141411" d="M18 74C34 69 49 67 64 67C79 67 94 69 110 74V84C110 92 105 97 98 99C91 102 85 103 78 104C75 93 70 88 64 88C58 88 53 93 50 104C43 103 37 102 30 99C23 97 18 92 18 84V74Z"/>
+  <circle cx="64" cy="110" r="14" fill="#141411"/>
+</g>
+  <rect x="894" y="536" width="286" height="118" rx="18" fill="#FFFFFF"/><text x="930" y="608">Waiter</text><g transform="translate(1074 551) scale(0.65)">
+  <circle cx="64" cy="22" r="14" fill="#F05A3C"/>
+  <path fill="#F05A3C" d="M22 40C29 34 40 30 49 29C52 40 57 46 64 46C71 46 76 40 79 29C89 30 99 34 106 40C109 43 110 47 110 52V65C94 60 79 58 64 58C49 58 34 60 18 65V52C18 47 19 43 22 40Z"/>
+  <path fill="#141411" d="M18 74C34 69 49 67 64 67C79 67 94 69 110 74V84C110 92 105 97 98 99C91 102 85 103 78 104C75 93 70 88 64 88C58 88 53 93 50 104C43 103 37 102 30 99C23 97 18 92 18 84V74Z"/>
+  <circle cx="64" cy="110" r="14" fill="#141411"/>
+</g>
+  <rect x="1204" y="536" width="326" height="118" rx="18" fill="#141411"/><text x="1240" y="608" fill="#F3EEE4">Display</text><g transform="translate(1424 551) scale(0.65)">
+  <circle cx="64" cy="22" r="14" fill="#F05A3C"/>
+  <path fill="#F05A3C" d="M22 40C29 34 40 30 49 29C52 40 57 46 64 46C71 46 76 40 79 29C89 30 99 34 106 40C109 43 110 47 110 52V65C94 60 79 58 64 58C49 58 34 60 18 65V52C18 47 19 43 22 40Z"/>
+  <path fill="#F3EEE4" d="M18 74C34 69 49 67 64 67C79 67 94 69 110 74V84C110 92 105 97 98 99C91 102 85 103 78 104C75 93 70 88 64 88C58 88 53 93 50 104C43 103 37 102 30 99C23 97 18 92 18 84V74Z"/>
+  <circle cx="64" cy="110" r="14" fill="#F3EEE4"/>
+</g>
+  <rect x="584" y="678" width="286" height="118" rx="18" fill="#FFFFFF"/><text x="620" y="750">Guest QR</text><g transform="translate(764 693) scale(0.65)">
+  <circle cx="64" cy="22" r="14" fill="#F05A3C"/>
+  <path fill="#F05A3C" d="M22 40C29 34 40 30 49 29C52 40 57 46 64 46C71 46 76 40 79 29C89 30 99 34 106 40C109 43 110 47 110 52V65C94 60 79 58 64 58C49 58 34 60 18 65V52C18 47 19 43 22 40Z"/>
+  <path fill="#141411" d="M18 74C34 69 49 67 64 67C79 67 94 69 110 74V84C110 92 105 97 98 99C91 102 85 103 78 104C75 93 70 88 64 88C58 88 53 93 50 104C43 103 37 102 30 99C23 97 18 92 18 84V74Z"/>
+  <circle cx="64" cy="110" r="14" fill="#141411"/>
+</g>
+  <rect x="894" y="678" width="286" height="118" rx="18" fill="#FFFFFF"/><text x="930" y="750">Platform</text><g transform="translate(1074 693) scale(0.65)">
+  <circle cx="64" cy="22" r="14" fill="#F05A3C"/>
+  <path fill="#F05A3C" d="M22 40C29 34 40 30 49 29C52 40 57 46 64 46C71 46 76 40 79 29C89 30 99 34 106 40C109 43 110 47 110 52V65C94 60 79 58 64 58C49 58 34 60 18 65V52C18 47 19 43 22 40Z"/>
+  <path fill="#141411" d="M18 74C34 69 49 67 64 67C79 67 94 69 110 74V84C110 92 105 97 98 99C91 102 85 103 78 104C75 93 70 88 64 88C58 88 53 93 50 104C43 103 37 102 30 99C23 97 18 92 18 84V74Z"/>
+  <circle cx="64" cy="110" r="14" fill="#141411"/>
+</g>
+  <rect x="1204" y="678" width="326" height="118" rx="18" fill="#FFFFFF"/><text x="1240" y="750">Web / PWA</text><g transform="translate(1424 693) scale(0.65)">
+  <circle cx="64" cy="22" r="14" fill="#F05A3C"/>
+  <path fill="#F05A3C" d="M22 40C29 34 40 30 49 29C52 40 57 46 64 46C71 46 76 40 79 29C89 30 99 34 106 40C109 43 110 47 110 52V65C94 60 79 58 64 58C49 58 34 60 18 65V52C18 47 19 43 22 40Z"/>
+  <path fill="#141411" d="M18 74C34 69 49 67 64 67C79 67 94 69 110 74V84C110 92 105 97 98 99C91 102 85 103 78 104C75 93 70 88 64 88C58 88 53 93 50 104C43 103 37 102 30 99C23 97 18 92 18 84V74Z"/>
+  <circle cx="64" cy="110" r="14" fill="#141411"/>
+</g>
+</g>
+<text x="584" y="874" fill="#141411" font-family="Nimbus Sans, Arial, sans-serif" font-size="52" font-weight="700">One mark. Every service surface.</text>
+<text x="584" y="921" fill="#141411" opacity=".58" font-family="Nimbus Sans, Arial, sans-serif" font-size="18" font-weight="700" letter-spacing="3">SEATD LOGO KIT / V1.0</text>
+</svg>

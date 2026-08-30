@@ -1700,6 +1700,344 @@
           }
         }
       }
+    },
+    "/v1/integrations": {
+      "get": {
+        "summary": "List integrations",
+        "responses": {
+          "200": {
+            "description": "Integration connections",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/integrations/{id}/health": {
+      "get": {
+        "summary": "Get integration health",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Integration health",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationHealth"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/integrations/{id}/mappings": {
+      "get": {
+        "summary": "List integration table mappings",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Mappings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationMappingsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/integrations/{id}/mappings/{mappingId}": {
+      "put": {
+        "summary": "Update integration table mapping",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "mappingId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateIntegrationMappingRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationTableMapping"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/integrations/{id}/webhooks": {
+      "get": {
+        "summary": "List integration webhooks",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Webhooks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationWebhooksResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/integrations/{id}/webhooks/{webhookId}/replay": {
+      "post": {
+        "summary": "Replay integration webhook",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "webhookId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Replay result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationWebhookResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/integrations/{id}/discrepancies": {
+      "get": {
+        "summary": "List integration discrepancies",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Discrepancies",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationDiscrepanciesResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/integrations/{id}/reconcile": {
+      "post": {
+        "summary": "Trigger integration reconciliation",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reconciliation run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationReconciliationResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/integrations/{vendor}/webhooks": {
+      "post": {
+        "summary": "Receive integration webhook",
+        "parameters": [
+          {
+            "name": "vendor",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Webhook accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationWebhookResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -3977,6 +4315,386 @@
           "to": {
             "type": "string",
             "format": "date"
+          }
+        }
+      },
+      "IntegrationConnection": {
+        "type": "object",
+        "required": [
+          "id",
+          "organisationId",
+          "locationId",
+          "vendor",
+          "displayName",
+          "credentialRef",
+          "status",
+          "capabilities",
+          "config",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "organisationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "vendor": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "credentialRef": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "connected",
+              "disconnected",
+              "degraded"
+            ]
+          },
+          "capabilities": {
+            "type": "object"
+          },
+          "config": {
+            "type": "object"
+          },
+          "lastSuccessfulSyncAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastError": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "IntegrationsResponse": {
+        "type": "object",
+        "required": [
+          "integrations"
+        ],
+        "properties": {
+          "integrations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IntegrationConnection"
+            }
+          }
+        }
+      },
+      "IntegrationHealth": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "IntegrationTableMapping": {
+        "type": "object",
+        "required": [
+          "id",
+          "connectionId",
+          "externalTableId",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "connectionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "externalTableId": {
+            "type": "string"
+          },
+          "tableId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "externalLabel": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "mapped",
+              "unmapped",
+              "ignored"
+            ]
+          },
+          "lastSeenAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "IntegrationMappingsResponse": {
+        "type": "object",
+        "required": [
+          "mappings"
+        ],
+        "properties": {
+          "mappings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IntegrationTableMapping"
+            }
+          }
+        }
+      },
+      "UpdateIntegrationMappingRequest": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "tableId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "mapped",
+              "unmapped",
+              "ignored"
+            ]
+          }
+        }
+      },
+      "IntegrationWebhook": {
+        "type": "object",
+        "required": [
+          "id",
+          "connectionId",
+          "vendor",
+          "externalEventId",
+          "receivedAt",
+          "signatureValid",
+          "payload",
+          "processingState",
+          "attempts"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "connectionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "vendor": {
+            "type": "string"
+          },
+          "externalEventId": {
+            "type": "string"
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "signatureValid": {
+            "type": "boolean"
+          },
+          "payload": {
+            "type": "object"
+          },
+          "processingState": {
+            "type": "string"
+          },
+          "attempts": {
+            "type": "integer"
+          },
+          "lastError": {
+            "type": "string"
+          },
+          "processedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "IntegrationWebhookResult": {
+        "type": "object",
+        "required": [
+          "webhook",
+          "applied"
+        ],
+        "properties": {
+          "webhook": {
+            "$ref": "#/components/schemas/IntegrationWebhook"
+          },
+          "applied": {
+            "type": "boolean"
+          }
+        }
+      },
+      "IntegrationWebhooksResponse": {
+        "type": "object",
+        "required": [
+          "webhooks"
+        ],
+        "properties": {
+          "webhooks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IntegrationWebhook"
+            }
+          }
+        }
+      },
+      "IntegrationDiscrepancy": {
+        "type": "object",
+        "required": [
+          "id",
+          "connectionId",
+          "reconciliationRunId",
+          "externalTableId",
+          "type",
+          "resolutionState",
+          "details",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "connectionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reconciliationRunId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "mappingId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tableId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "externalTableId": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "seatdState": {
+            "type": "string"
+          },
+          "externalState": {
+            "type": "string"
+          },
+          "resolutionState": {
+            "type": "string"
+          },
+          "details": {
+            "type": "object"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "IntegrationDiscrepanciesResponse": {
+        "type": "object",
+        "required": [
+          "discrepancies"
+        ],
+        "properties": {
+          "discrepancies": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IntegrationDiscrepancy"
+            }
+          }
+        }
+      },
+      "IntegrationReconciliationRun": {
+        "type": "object",
+        "required": [
+          "id",
+          "connectionId",
+          "startedAt",
+          "status",
+          "checkedCount",
+          "discrepancyCount",
+          "autoCorrectedCount"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "connectionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string"
+          },
+          "checkedCount": {
+            "type": "integer"
+          },
+          "discrepancyCount": {
+            "type": "integer"
+          },
+          "autoCorrectedCount": {
+            "type": "integer"
+          },
+          "lastError": {
+            "type": "string"
+          }
+        }
+      },
+      "IntegrationReconciliationResponse": {
+        "type": "object",
+        "required": [
+          "reconciliationRun"
+        ],
+        "properties": {
+          "reconciliationRun": {
+            "$ref": "#/components/schemas/IntegrationReconciliationRun"
           }
         }
       }

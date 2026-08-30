@@ -16,8 +16,11 @@ import (
 	"github.com/kadebhug/seatd_v2/internal/app"
 	"github.com/kadebhug/seatd_v2/internal/domain/analytics"
 	"github.com/kadebhug/seatd_v2/internal/domain/events"
+	"github.com/kadebhug/seatd_v2/internal/domain/integrations"
+	"github.com/kadebhug/seatd_v2/internal/domain/operations"
 	"github.com/kadebhug/seatd_v2/internal/outbox"
 	"github.com/kadebhug/seatd_v2/internal/store"
+	"golang.org/x/sync/errgroup"
 )
 
 var (
@@ -54,12 +57,46 @@ func main() {
 		os.Exit(1)
 	}
 	worker := outbox.NewWorker(pool, logger, consumers(pool, logger), outboxConfig)
+	integrationInterval, err := envDuration("SEATD_INTEGRATION_RECONCILE_INTERVAL", 5*time.Minute)
+	if err != nil {
+		logger.ErrorContext(ctx, "integration configuration invalid", "error", err)
+		os.Exit(1)
+	}
+	integrationService := integrations.NewService(pool, operations.NewService(pool))
 	logger.InfoContext(ctx, "worker starting")
-	if err := worker.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
+	group, groupCtx := errgroup.WithContext(ctx)
+	group.Go(func() error {
+		return worker.Run(groupCtx)
+	})
+	group.Go(func() error {
+		return runIntegrationReconciler(groupCtx, logger, integrationService, integrationInterval)
+	})
+	if err := group.Wait(); err != nil && !errors.Is(err, context.Canceled) {
 		logger.ErrorContext(ctx, "worker stopped with error", "error", err)
 		os.Exit(1)
 	}
 	logger.InfoContext(ctx, "worker stopped")
+}
+
+func runIntegrationReconciler(ctx context.Context, logger *slog.Logger, service *integrations.Service, interval time.Duration) error {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		processed, err := service.ReconcileConnected(ctx)
+		if err != nil {
+			if errors.Is(err, context.Canceled) {
+				return err
+			}
+			logger.WarnContext(ctx, "integration reconciliation failed", "error", err)
+		} else if processed > 0 {
+			logger.InfoContext(ctx, "integration reconciliation completed", "connections", processed)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+		}
+	}
 }
 
 func consumers(pool *pgxpool.Pool, logger *slog.Logger) map[string][]outbox.Consumer {

@@ -302,6 +302,88 @@ type GuestAbuseEvent struct {
 	CreatedAt         pgtype.Timestamptz `json:"created_at"`
 }
 
+type IntegrationConnection struct {
+	ID                   uuid.UUID          `json:"id"`
+	OrganisationID       uuid.UUID          `json:"organisation_id"`
+	LocationID           uuid.UUID          `json:"location_id"`
+	Vendor               string             `json:"vendor"`
+	DisplayName          string             `json:"display_name"`
+	CredentialRef        string             `json:"credential_ref"`
+	Status               string             `json:"status"`
+	Capabilities         []byte             `json:"capabilities"`
+	Config               []byte             `json:"config"`
+	LastSuccessfulSyncAt pgtype.Timestamptz `json:"last_successful_sync_at"`
+	LastError            pgtype.Text        `json:"last_error"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
+}
+
+type IntegrationDiscrepancy struct {
+	ID                  uuid.UUID          `json:"id"`
+	OrganisationID      uuid.UUID          `json:"organisation_id"`
+	LocationID          uuid.UUID          `json:"location_id"`
+	ConnectionID        uuid.UUID          `json:"connection_id"`
+	ReconciliationRunID uuid.UUID          `json:"reconciliation_run_id"`
+	MappingID           uuid.NullUUID      `json:"mapping_id"`
+	TableID             uuid.NullUUID      `json:"table_id"`
+	ExternalTableID     string             `json:"external_table_id"`
+	DiscrepancyType     string             `json:"discrepancy_type"`
+	SeatdState          pgtype.Text        `json:"seatd_state"`
+	ExternalState       pgtype.Text        `json:"external_state"`
+	ResolutionState     string             `json:"resolution_state"`
+	Details             []byte             `json:"details"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+}
+
+type IntegrationReconciliationRun struct {
+	ID                 uuid.UUID          `json:"id"`
+	OrganisationID     uuid.UUID          `json:"organisation_id"`
+	LocationID         uuid.UUID          `json:"location_id"`
+	ConnectionID       uuid.UUID          `json:"connection_id"`
+	StartedAt          pgtype.Timestamptz `json:"started_at"`
+	CompletedAt        pgtype.Timestamptz `json:"completed_at"`
+	Status             string             `json:"status"`
+	CheckedCount       int32              `json:"checked_count"`
+	DiscrepancyCount   int32              `json:"discrepancy_count"`
+	AutoCorrectedCount int32              `json:"auto_corrected_count"`
+	LastError          pgtype.Text        `json:"last_error"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+}
+
+type IntegrationTableMapping struct {
+	ID              uuid.UUID          `json:"id"`
+	OrganisationID  uuid.UUID          `json:"organisation_id"`
+	LocationID      uuid.UUID          `json:"location_id"`
+	ConnectionID    uuid.UUID          `json:"connection_id"`
+	ExternalTableID string             `json:"external_table_id"`
+	TableID         uuid.NullUUID      `json:"table_id"`
+	ExternalLabel   pgtype.Text        `json:"external_label"`
+	Status          string             `json:"status"`
+	LastSeenAt      pgtype.Timestamptz `json:"last_seen_at"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+}
+
+type IntegrationWebhookInbox struct {
+	ID              uuid.UUID          `json:"id"`
+	OrganisationID  uuid.UUID          `json:"organisation_id"`
+	LocationID      uuid.UUID          `json:"location_id"`
+	ConnectionID    uuid.UUID          `json:"connection_id"`
+	Vendor          string             `json:"vendor"`
+	ExternalEventID string             `json:"external_event_id"`
+	ReceivedAt      pgtype.Timestamptz `json:"received_at"`
+	SignatureValid  bool               `json:"signature_valid"`
+	Payload         []byte             `json:"payload"`
+	ProcessingState string             `json:"processing_state"`
+	Attempts        int32              `json:"attempts"`
+	LastError       pgtype.Text        `json:"last_error"`
+	ProcessedAt     pgtype.Timestamptz `json:"processed_at"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+}
+
 type LegacyRestaurantMapping struct {
 	LegacyRestaurantID string             `json:"legacy_restaurant_id"`
 	OrganisationID     uuid.UUID          `json:"organisation_id"`

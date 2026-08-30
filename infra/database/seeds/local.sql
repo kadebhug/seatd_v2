@@ -292,3 +292,66 @@ FROM tables
 WHERE organisation_id = '11111111-1111-1111-1111-111111111111'
   AND legacy_table_id IS NOT NULL
 ON CONFLICT (legacy_table_id) DO NOTHING;
+
+INSERT INTO integration_connections (
+    id,
+    organisation_id,
+    location_id,
+    vendor,
+    display_name,
+    credential_ref,
+    status,
+    capabilities,
+    config
+)
+VALUES (
+    '77777777-7777-7777-7777-777777777777',
+    '11111111-1111-1111-1111-111111111111',
+    '22222222-2222-2222-2222-222222222222',
+    'reference_pos',
+    'Reference POS',
+    'env:SEATD_REFERENCE_POS_WEBHOOK_SECRET',
+    'connected',
+    '{"webhooks":true,"fetchExternalStatus":true,"reconciliation":true}'::jsonb,
+    '{"referenceTables":[{"externalTableId":"ref-t1","label":"T1","status":"available"},{"externalTableId":"ref-t2","label":"T2","status":"available"},{"externalTableId":"ref-p1","label":"P1","status":"available"},{"externalTableId":"ref-r1","label":"R1","status":"available"}]}'::jsonb
+)
+ON CONFLICT (id) DO UPDATE
+SET display_name = EXCLUDED.display_name,
+    credential_ref = EXCLUDED.credential_ref,
+    status = EXCLUDED.status,
+    capabilities = EXCLUDED.capabilities,
+    config = EXCLUDED.config,
+    updated_at = now();
+
+INSERT INTO integration_table_mappings (
+    organisation_id,
+    location_id,
+    connection_id,
+    external_table_id,
+    table_id,
+    external_label,
+    status,
+    last_seen_at
+)
+SELECT
+    '11111111-1111-1111-1111-111111111111'::uuid,
+    '22222222-2222-2222-2222-222222222222'::uuid,
+    '77777777-7777-7777-7777-777777777777'::uuid,
+    external_table_id,
+    table_id,
+    label,
+    'mapped',
+    now()
+FROM (
+    VALUES
+        ('ref-t1', '55555555-5555-5555-5555-555555555551'::uuid, 'T1'),
+        ('ref-t2', '55555555-5555-5555-5555-555555555552'::uuid, 'T2'),
+        ('ref-p1', '55555555-5555-5555-5555-555555555553'::uuid, 'P1'),
+        ('ref-r1', '55555555-5555-5555-5555-555555555554'::uuid, 'R1')
+) rows (external_table_id, table_id, label)
+ON CONFLICT (connection_id, external_table_id) DO UPDATE
+SET table_id = EXCLUDED.table_id,
+    external_label = EXCLUDED.external_label,
+    status = EXCLUDED.status,
+    last_seen_at = EXCLUDED.last_seen_at,
+    updated_at = now();

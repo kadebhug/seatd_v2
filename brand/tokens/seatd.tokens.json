@@ -1,0 +1,54 @@
+{
+  "$schema": "https://design-tokens.github.io/community-group/format/",
+  "brand": {
+    "color": {
+      "ink": {
+        "$type": "color",
+        "$value": "#141411"
+      },
+      "bone": {
+        "$type": "color",
+        "$value": "#F3EEE4"
+      },
+      "signal": {
+        "$type": "color",
+        "$value": "#F05A3C"
+      },
+      "available": {
+        "$type": "color",
+        "$value": "#2F7D65"
+      },
+      "attention": {
+        "$type": "color",
+        "$value": "#D99A2B"
+      },
+      "white": {
+        "$type": "color",
+        "$value": "#FFFFFF"
+      }
+    },
+    "radius": {
+      "small": {
+        "$type": "dimension",
+        "$value": {
+          "value": 8,
+          "unit": "px"
+        }
+      },
+      "medium": {
+        "$type": "dimension",
+        "$value": {
+          "value": 16,
+          "unit": "px"
+        }
+      },
+      "large": {
+        "$type": "dimension",
+        "$value": {
+          "value": 24,
+          "unit": "px"
+        }
+      }
+    }
+  }
+}

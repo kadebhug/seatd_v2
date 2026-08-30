@@ -34,6 +34,8 @@ const (
 	PermissionDeviceManage       = "device.manage"
 	PermissionAuditRead          = "audit.read"
 	PermissionAnalyticsRead      = "analytics.read"
+	PermissionIntegrationsRead   = "integrations.read"
+	PermissionIntegrationsManage = "integrations.manage"
 
 	DeviceTypeWaiterMobile  = "waiter_mobile"
 	DeviceTypeManagerTablet = "manager_tablet"

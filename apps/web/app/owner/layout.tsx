@@ -23,6 +23,7 @@ export default async function OwnerLayout({
           <Link href="/owner/configuration">Configuration</Link>
           <Link href="/owner/layout">Floor editor</Link>
           <Link href="/owner/devices">Devices</Link>
+          <Link href="/owner/integrations">Integrations</Link>
           <Link href="/platform">Platform</Link>
         </nav>
       </aside>

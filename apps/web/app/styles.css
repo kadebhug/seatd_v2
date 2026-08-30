@@ -185,6 +185,71 @@ a {
   overflow-wrap: anywhere;
 }
 
+.integrations-layout {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 280px minmax(0, 1fr);
+}
+
+.integration-sidebar {
+  align-self: start;
+}
+
+.integration-sidebar button {
+  display: grid;
+  gap: 3px;
+}
+
+.integration-sidebar small,
+.mapping-row small,
+.webhook-row small,
+.discrepancy-row small {
+  color: #607066;
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.integration-summary {
+  align-items: start;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 0.8fr) auto;
+}
+
+.integration-summary h2,
+.integration-summary p {
+  margin: 0;
+}
+
+.table-list {
+  display: grid;
+  gap: 8px;
+}
+
+.mapping-row,
+.webhook-row,
+.discrepancy-row {
+  align-items: center;
+  border: 1px solid #d9ded6;
+  border-radius: 6px;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 10px;
+}
+
+.mapping-row {
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 260px);
+}
+
+.webhook-row {
+  grid-template-columns: minmax(0, 1fr) 120px 130px auto;
+}
+
+.discrepancy-row {
+  grid-template-columns: minmax(0, 1fr) 150px 150px;
+}
+
 .form {
   display: grid;
   gap: 10px;

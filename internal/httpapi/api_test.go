@@ -77,6 +77,18 @@ func TestDeviceHeartbeatRequiresBearerCredential(t *testing.T) {
 	assertAPIError(t, rec, http.StatusUnauthorized, "unauthorized")
 }
 
+func TestIntegrationWebhookRequiresConnectionHeader(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(app.Config{}, nil, nil)
+	req := httptest.NewRequest(http.MethodPost, "/v1/integrations/reference_pos/webhooks", strings.NewReader(`{}`))
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	assertAPIError(t, rec, http.StatusBadRequest, "validation_failed")
+}
+
 func TestCreateFloorRejectsUnknownBodyFields(t *testing.T) {
 	t.Parallel()
 

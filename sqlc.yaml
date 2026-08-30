@@ -11,6 +11,7 @@ sql:
       - "infra/database/migrations/000007_guest_qr_experience.up.sql"
       - "infra/database/migrations/000008_display_kiosk_device_management.up.sql"
       - "infra/database/migrations/000009_analytics_reporting.up.sql"
+      - "infra/database/migrations/000010_integrations_reconciliation.up.sql"
     queries:
       - "internal/store/queries"
     gen:
