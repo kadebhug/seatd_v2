@@ -1,7 +1,20 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import type React from "react";
-import { canAccessOwner, getSession } from "../../lib/session";
+import { AppShell } from "../components/app-shell";
+import {
+  canAccessOwner,
+  canAccessPlatform,
+  getSession,
+} from "../../lib/session";
+
+const ownerNav = [
+  { href: "/owner", label: "Overview" },
+  { href: "/owner/analytics", label: "Analytics" },
+  { href: "/owner/configuration", label: "Configuration" },
+  { href: "/owner/layout", label: "Floor editor" },
+  { href: "/owner/devices", label: "Devices" },
+  { href: "/owner/integrations", label: "Integrations" },
+];
 
 export default async function OwnerLayout({
   children,
@@ -11,34 +24,22 @@ export default async function OwnerLayout({
     redirect("/");
   }
 
+  const navItems = [...ownerNav];
+  if (canAccessPlatform(session)) {
+    navItems.push({ href: "/platform", label: "Platform" });
+  }
+
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <Link className="brand" href="/owner">
-          Seatd
-        </Link>
-        <nav>
-          <Link href="/owner">Overview</Link>
-          <Link href="/owner/analytics">Analytics</Link>
-          <Link href="/owner/configuration">Configuration</Link>
-          <Link href="/owner/layout">Floor editor</Link>
-          <Link href="/owner/devices">Devices</Link>
-          <Link href="/owner/integrations">Integrations</Link>
-          <Link href="/platform">Platform</Link>
-        </nav>
-      </aside>
-      <div className="workspace">
-        <header className="topbar">
-          <div>
-            <strong>{session.displayName}</strong>
-            <span>{session.actorRef}</span>
-          </div>
-          <select defaultValue={session.locationId} aria-label="Location">
-            <option value={session.locationId}>Main Street</option>
-          </select>
-        </header>
-        {children}
-      </div>
-    </div>
+    <AppShell
+      actorRef={session.actorRef}
+      displayName={session.displayName}
+      homeHref="/owner"
+      locationId={session.locationId}
+      navItems={navItems}
+      role="Owner"
+      showLocationSelect
+    >
+      {children}
+    </AppShell>
   );
 }

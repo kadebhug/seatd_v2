@@ -14,7 +14,7 @@ export default async function ConfigurationPage() {
   ]);
 
   return (
-    <main className="page">
+    <main className="page" id="main">
       <section className="page-heading">
         <p>Configuration</p>
         <h1>Organisation and location settings</h1>

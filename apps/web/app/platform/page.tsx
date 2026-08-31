@@ -1,17 +1,9 @@
-import { redirect } from "next/navigation";
-import { canAccessPlatform, getSession } from "../../lib/session";
-
-export default async function PlatformPage() {
-  const session = await getSession();
-  if (!canAccessPlatform(session)) {
-    redirect("/owner");
-  }
-
+export default function PlatformPage() {
   return (
-    <main className="page">
+    <main className="page" id="main">
       <section className="page-heading">
-        <p>Platform</p>
-        <h1>Organisation support console</h1>
+        <p className="eyebrow">Platform</p>
+        <h1>Organisation Support Console</h1>
       </section>
       <section className="panel">
         <h2>Status</h2>

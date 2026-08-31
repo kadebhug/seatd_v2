@@ -30,7 +30,7 @@ export default async function OwnerAnalyticsPage() {
   ]);
 
   return (
-    <main className="page analytics-page">
+    <main className="page analytics-page" id="main">
       <section className="page-heading">
         <p>Analytics</p>
         <h1>{summary.location.name}</h1>

@@ -12,6 +12,7 @@ import type {
   IntegrationWebhooksResponse,
   Table,
 } from "@seatd/typescript-seatd-client";
+import { StatusBadge } from "../../components/status-badge";
 
 type Props = {
   initialIntegrations: IntegrationConnection[];
@@ -36,6 +37,7 @@ export function IntegrationManager({
   const [webhooks, setWebhooks] = useState(initialWebhooks);
   const [discrepancies, setDiscrepancies] = useState(initialDiscrepancies);
   const [message, setMessage] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const selected = integrations.find((item) => item.id === selectedId);
   const tableById = useMemo(
     () => new Map(tables.map((table) => [table.id, table])),
@@ -65,7 +67,12 @@ export function IntegrationManager({
   async function selectConnection(connectionId: string) {
     setSelectedId(connectionId);
     setMessage(null);
-    await refresh(connectionId);
+    setBusy(true);
+    try {
+      await refresh(connectionId);
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function updateMapping(
@@ -88,29 +95,61 @@ export function IntegrationManager({
   }
 
   async function replay(webhook: IntegrationWebhook) {
+    if (
+      !window.confirm(
+        `Replay webhook "${webhook.externalEventId}"? This may re-apply POS state.`,
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
     setMessage(null);
-    const result = await fetchJSON<IntegrationWebhookResult>(
-      `/api/owner/integrations/${selectedId}/webhooks/${webhook.id}/replay`,
-      { method: "POST" },
-    );
-    setMessage(result.applied ? "Webhook replayed" : "Webhook replay recorded");
-    await refresh();
+    try {
+      const result = await fetchJSON<IntegrationWebhookResult>(
+        `/api/owner/integrations/${selectedId}/webhooks/${webhook.id}/replay`,
+        { method: "POST" },
+      );
+      setMessage(
+        result.applied ? "Webhook replayed." : "Webhook replay recorded.",
+      );
+      await refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Replay failed.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function reconcile() {
+    if (
+      !window.confirm(
+        "Run reconciliation now? Seatd will compare POS state against table occupancy.",
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
     setMessage(null);
-    await fetchJSON(`/api/owner/integrations/${selectedId}/reconcile`, {
-      method: "POST",
-    });
-    setMessage("Reconciliation completed");
-    await refresh();
+    try {
+      await fetchJSON(`/api/owner/integrations/${selectedId}/reconcile`, {
+        method: "POST",
+      });
+      setMessage("Reconciliation completed.");
+      await refresh();
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "Reconciliation failed.",
+      );
+    } finally {
+      setBusy(false);
+    }
   }
 
   if (integrations.length === 0) {
     return (
       <section className="panel">
-        <h2>No integrations connected</h2>
-        <p className="eyebrow">
+        <h2>No Integrations Connected</h2>
+        <p className="empty-state">
           Connect the reference POS seed or create an integration connection.
         </p>
       </section>
@@ -124,9 +163,11 @@ export function IntegrationManager({
         <div className="list-buttons">
           {integrations.map((integration) => (
             <button
+              aria-pressed={integration.id === selectedId}
               className={integration.id === selectedId ? "selected" : ""}
               key={integration.id}
               onClick={() => void selectConnection(integration.id)}
+              type="button"
             >
               <span>{integration.displayName}</span>
               <small>{integration.vendor}</small>
@@ -139,7 +180,7 @@ export function IntegrationManager({
         {selected ? (
           <article className="panel integration-summary">
             <div>
-              <span className={`status-dot ${selected.status}`} />
+              <StatusBadge label={selected.status} variant={selected.status} />
               <h2>{selected.displayName}</h2>
               <p>{selected.credentialRef}</p>
             </div>
@@ -155,85 +196,114 @@ export function IntegrationManager({
               <dt>Last error</dt>
               <dd>{selected.lastError ?? "None"}</dd>
             </dl>
-            <button onClick={() => void reconcile()}>Reconcile</button>
+            <button
+              disabled={busy}
+              onClick={() => void reconcile()}
+              type="button"
+            >
+              {busy ? "Running…" : "Reconcile"}
+            </button>
           </article>
         ) : null}
 
-        {message ? <p className="toast">{message}</p> : null}
+        {message ? (
+          <p aria-live="polite" className="toast" role="status">
+            {message}
+          </p>
+        ) : null}
 
         <article className="panel">
-          <h2>Table mappings</h2>
+          <h2>Table Mappings</h2>
           <div className="table-list">
-            {mappings.map((mapping) => (
-              <label className="mapping-row" key={mapping.id}>
-                <span>
-                  <strong>
-                    {mapping.externalLabel ?? mapping.externalTableId}
-                  </strong>
-                  <small>{mapping.externalTableId}</small>
-                </span>
-                <select
-                  value={mapping.tableId ?? ""}
-                  onChange={(event) =>
-                    void updateMapping(mapping, event.target.value)
-                  }
-                >
-                  <option value="">Unmapped</option>
-                  {tables.map((table) => (
-                    <option key={table.id} value={table.id}>
-                      {table.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ))}
+            {mappings.length > 0 ? (
+              mappings.map((mapping) => (
+                <label className="mapping-row" key={mapping.id}>
+                  <span>
+                    <strong>
+                      {mapping.externalLabel ?? mapping.externalTableId}
+                    </strong>
+                    <small>{mapping.externalTableId}</small>
+                  </span>
+                  <select
+                    aria-label={`Map ${mapping.externalLabel ?? mapping.externalTableId}`}
+                    autoComplete="off"
+                    name={`mapping-${mapping.id}`}
+                    onChange={(event) =>
+                      void updateMapping(mapping, event.target.value)
+                    }
+                    value={mapping.tableId ?? ""}
+                  >
+                    <option value="">Unmapped</option>
+                    {tables.map((table) => (
+                      <option key={table.id} value={table.id}>
+                        {table.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ))
+            ) : (
+              <p className="empty-state">No table mappings yet.</p>
+            )}
           </div>
         </article>
 
         <article className="panel">
-          <h2>Webhook inbox</h2>
+          <h2>Webhook Inbox</h2>
           <div className="table-list">
-            {webhooks.map((webhook) => (
-              <div className="webhook-row" key={webhook.id}>
-                <span>
-                  <strong>{webhook.externalEventId}</strong>
-                  <small>{formatDate(webhook.receivedAt)}</small>
-                </span>
-                <span>{webhook.processingState}</span>
-                <span>
-                  {webhook.signatureValid ? "signed" : "signature failed"}
-                </span>
-                <button
-                  disabled={webhook.processingState === "processed"}
-                  onClick={() => void replay(webhook)}
-                >
-                  Replay
-                </button>
-              </div>
-            ))}
+            {webhooks.length > 0 ? (
+              webhooks.map((webhook) => (
+                <div className="webhook-row" key={webhook.id}>
+                  <span>
+                    <strong>{webhook.externalEventId}</strong>
+                    <small>{formatDate(webhook.receivedAt)}</small>
+                  </span>
+                  <StatusBadge
+                    label={webhook.processingState}
+                    variant={webhook.processingState}
+                  />
+                  <span>
+                    {webhook.signatureValid ? "Signed" : "Signature failed"}
+                  </span>
+                  <button
+                    disabled={webhook.processingState === "processed" || busy}
+                    onClick={() => void replay(webhook)}
+                    type="button"
+                  >
+                    Replay
+                  </button>
+                </div>
+              ))
+            ) : (
+              <p className="empty-state">No webhooks received yet.</p>
+            )}
           </div>
         </article>
 
         <article className="panel">
-          <h2>Reconciliation mismatches</h2>
+          <h2>Reconciliation Mismatches</h2>
           <div className="table-list">
-            {discrepancies.map((item) => (
-              <div className="discrepancy-row" key={item.id}>
-                <span>
-                  <strong>
-                    {item.tableId
-                      ? tableById.get(item.tableId)?.label
-                      : item.externalTableId}
-                  </strong>
-                  <small>{item.type}</small>
-                </span>
-                <span>
-                  {item.seatdState ?? "none"} {"->"}{" "}
-                  {item.externalState ?? "none"}
-                </span>
-                <span>{item.resolutionState}</span>
-              </div>
-            ))}
+            {discrepancies.length > 0 ? (
+              discrepancies.map((item) => (
+                <div className="discrepancy-row" key={item.id}>
+                  <span>
+                    <strong>
+                      {item.tableId
+                        ? tableById.get(item.tableId)?.label
+                        : item.externalTableId}
+                    </strong>
+                    <small>{item.type}</small>
+                  </span>
+                  <span>
+                    {item.seatdState ?? "none"} {"->"}{" "}
+                    {item.externalState ?? "none"}
+                  </span>
+                  <span>{item.resolutionState}</span>
+                </div>
+              ))
+            ) : (
+              <p className="empty-state">No mismatches recorded.</p>
+            )}
           </div>
         </article>
       </section>
@@ -245,7 +315,7 @@ async function fetchJSON<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, init);
   const body = await response.json();
   if (!response.ok) {
-    throw new Error(body.error?.message ?? "Request failed");
+    throw new Error(body.error?.message ?? "Request failed.");
   }
   return body as T;
 }

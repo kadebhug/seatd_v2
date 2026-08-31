@@ -35,7 +35,7 @@ export default async function IntegrationsPage() {
       ];
 
   return (
-    <main className="page">
+    <main className="page" id="main">
       <section className="page-heading">
         <p>Integrations</p>
         <h1>POS reconciliation and webhook health</h1>

@@ -10,7 +10,7 @@ export default async function LayoutPage() {
   );
 
   return (
-    <main className="page editor-page">
+    <main className="page editor-page" id="main">
       <section className="page-heading">
         <p>Floor editor</p>
         <h1>Layout and live table preview</h1>

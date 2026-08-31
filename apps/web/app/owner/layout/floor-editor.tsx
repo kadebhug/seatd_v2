@@ -11,6 +11,7 @@ import type {
   ZoneRequest,
 } from "@seatd/typescript-seatd-client";
 import { useMemo, useState } from "react";
+import { occupancyLabel } from "../../../lib/occupancy";
 
 type Geometry = {
   x: number;
@@ -34,6 +35,7 @@ export function FloorEditor({
     initialSnapshot.tables[0]?.table.id ?? "",
   );
   const [status, setStatus] = useState("");
+  const [statusIsError, setStatusIsError] = useState(false);
 
   const selectedFloor =
     snapshot.floors.find((floor) => floor.id === selectedFloorId) ??
@@ -67,16 +69,18 @@ export function FloorEditor({
     body: unknown,
   ): Promise<T | null> {
     setStatus("");
+    setStatusIsError(false);
     const response = await fetch(path, {
       method,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
     if (!response.ok) {
-      setStatus(await response.text());
+      setStatus(await readErrorMessage(response));
+      setStatusIsError(true);
       return null;
     }
-    setStatus("Saved");
+    setStatus("Saved.");
     return response.json() as Promise<T>;
   }
 
@@ -86,13 +90,6 @@ export function FloorEditor({
       floors: current.floors.map((item) =>
         item.id === floor.id ? floor : item,
       ),
-    }));
-  }
-
-  function replaceZone(zone: Zone) {
-    setSnapshot((current) => ({
-      ...current,
-      zones: current.zones.map((item) => (item.id === zone.id ? zone : item)),
     }));
   }
 
@@ -120,6 +117,26 @@ export function FloorEditor({
     }
   }
 
+  async function toggleFloorArchive(floor: Floor) {
+    if (floor.isActive) {
+      if (
+        !window.confirm(
+          `Archive floor "${floor.name}"? Tables on this floor stay in history but leave active service.`,
+        )
+      ) {
+        return;
+      }
+    }
+    const saved = await request<Floor>(
+      `/api/owner/floors/${floor.id}/${floor.isActive ? "archive" : "restore"}`,
+      "POST",
+      { expectedVersion: floor.version },
+    );
+    if (saved) {
+      replaceFloor(saved);
+    }
+  }
+
   return (
     <div className="editor-grid">
       <aside className="panel stack">
@@ -127,6 +144,7 @@ export function FloorEditor({
         <div className="list-buttons">
           {snapshot.floors.map((floor) => (
             <button
+              aria-pressed={floor.id === selectedFloor?.id}
               className={floor.id === selectedFloor?.id ? "selected" : ""}
               key={floor.id}
               onClick={() => setSelectedFloorId(floor.id)}
@@ -162,43 +180,60 @@ export function FloorEditor({
             }
           }}
         >
-          <h3>Add floor</h3>
-          <input name="name" placeholder="Name" />
-          <input name="slug" placeholder="slug" />
-          <input name="sortOrder" placeholder="0" type="number" />
-          <input name="backgroundAssetRef" placeholder="background asset ref" />
-          <button type="submit">Add floor</button>
+          <h3>Add Floor</h3>
+          <label>
+            Name
+            <input name="name" placeholder="Main dining…" required />
+          </label>
+          <label>
+            Slug
+            <input
+              autoComplete="off"
+              name="slug"
+              placeholder="main-dining…"
+              required
+              spellCheck={false}
+            />
+          </label>
+          <label>
+            Sort order
+            <input defaultValue={0} name="sortOrder" type="number" />
+          </label>
+          <label>
+            Background asset ref
+            <input
+              autoComplete="off"
+              name="backgroundAssetRef"
+              placeholder="Optional asset ref…"
+              spellCheck={false}
+            />
+          </label>
+          <button type="submit">Add Floor</button>
         </form>
         {selectedFloor ? (
           <button
+            className={selectedFloor.isActive ? "danger" : "secondary"}
+            onClick={() => void toggleFloorArchive(selectedFloor)}
             type="button"
-            onClick={async () => {
-              const floor = await request<Floor>(
-                `/api/owner/floors/${selectedFloor.id}/${selectedFloor.isActive ? "archive" : "restore"}`,
-                "POST",
-                { expectedVersion: selectedFloor.version },
-              );
-              if (floor) replaceFloor(floor);
-            }}
           >
-            {selectedFloor.isActive ? "Archive floor" : "Restore floor"}
+            {selectedFloor.isActive ? "Archive Floor" : "Restore Floor"}
           </button>
         ) : null}
       </aside>
 
-      <section className="canvas-panel">
+      <section aria-label="Floor canvas" className="canvas-panel">
         <div
           className="floor-canvas"
           style={{ aspectRatio: `${canvas.width} / ${canvas.height}` }}
         >
           {tableStates.map((state) => (
             <TableTile
-              key={state.table.id}
-              selected={state.table.id === selectedState?.table.id}
-              state={state}
               canvas={canvas}
+              key={state.table.id}
               onMove={moveTable}
               onSelect={() => setSelectedTableId(state.table.id)}
+              selected={state.table.id === selectedState?.table.id}
+              state={state}
             />
           ))}
         </div>
@@ -208,19 +243,32 @@ export function FloorEditor({
         <h2>Objects</h2>
         {selectedState ? (
           <TableForm
-            table={selectedState.table}
-            zones={zones}
-            onSave={saveTable}
             onArchive={async (table) => {
+              if (table.isActive) {
+                if (
+                  !window.confirm(
+                    `Archive table "${table.label}"? It will leave the active floor plan.`,
+                  )
+                ) {
+                  return;
+                }
+              }
               const saved = await request<Table>(
                 `/api/owner/tables/${table.id}/${table.isActive ? "archive" : "restore"}`,
                 "POST",
                 { expectedVersion: table.version },
               );
-              if (saved) replaceTable(saved);
+              if (saved) {
+                replaceTable(saved);
+              }
             }}
+            onSave={saveTable}
+            table={selectedState.table}
+            zones={zones}
           />
-        ) : null}
+        ) : (
+          <p className="empty-state">Select a table to edit its properties.</p>
+        )}
         {selectedFloor ? (
           <>
             <ZoneForm
@@ -231,16 +279,16 @@ export function FloorEditor({
                   "POST",
                   body,
                 );
-                if (zone)
+                if (zone) {
                   setSnapshot((current) => ({
                     ...current,
                     zones: [...current.zones, zone],
                   }));
+                }
               }}
             />
             <AddTableForm
               floor={selectedFloor}
-              zones={zones}
               onCreate={async (body) => {
                 const table = await request<Table>(
                   "/api/owner/tables",
@@ -252,10 +300,19 @@ export function FloorEditor({
                   setSelectedTableId(table.id);
                 }
               }}
+              zones={zones}
             />
           </>
         ) : null}
-        {status ? <p className="toast">{status}</p> : null}
+        {status ? (
+          <p
+            aria-live="polite"
+            className="toast"
+            role={statusIsError ? "alert" : "status"}
+          >
+            {status}
+          </p>
+        ) : null}
       </aside>
     </div>
   );
@@ -278,9 +335,12 @@ function TableTile({
   const geom = geometry(table);
   const width = geom.width ?? (geom.radius ? geom.radius * 2 : 90);
   const height = geom.height ?? (geom.radius ? geom.radius * 2 : 70);
+  const label = occupancyLabel(state.occupancy.status);
 
   return (
     <button
+      aria-label={`${table.label}, ${label}`}
+      aria-pressed={selected}
       className={`table-tile ${table.shape} ${selected ? "selected" : ""} ${state.occupancy.status}`}
       onClick={onSelect}
       onPointerDown={(event) => {
@@ -318,7 +378,7 @@ function TableTile({
       type="button"
     >
       <strong>{table.label}</strong>
-      <span>{state.occupancy.status}</span>
+      <span>{label}</span>
     </button>
   );
 }
@@ -357,36 +417,72 @@ function TableForm({
         });
       }}
     >
-      <h3>Edit table</h3>
-      <input name="label" defaultValue={table.label} />
-      <input name="capacityLabel" defaultValue={table.capacityLabel} />
-      <select name="shape" defaultValue={table.shape}>
-        <option value="rectangle">Rectangle</option>
-        <option value="circle">Circle</option>
-        <option value="square">Square</option>
-        <option value="custom">Custom</option>
-      </select>
-      <select name="zoneId" defaultValue={table.zoneId}>
-        {zones.map((zone) => (
-          <option key={zone.id} value={zone.id}>
-            {zone.name}
-          </option>
-        ))}
-      </select>
-      <div className="number-grid">
-        <input name="x" defaultValue={geom.x} type="number" />
-        <input name="y" defaultValue={geom.y} type="number" />
-        <input name="width" defaultValue={geom.width ?? 100} type="number" />
-        <input name="height" defaultValue={geom.height ?? 70} type="number" />
+      <h3>Edit Table</h3>
+      <label>
+        Label
+        <input defaultValue={table.label} name="label" required />
+      </label>
+      <label>
+        Capacity label
         <input
-          name="rotation"
-          defaultValue={geom.rotation ?? 0}
-          type="number"
+          defaultValue={table.capacityLabel}
+          name="capacityLabel"
+          required
         />
-      </div>
-      <button type="submit">Save table</button>
-      <button type="button" onClick={() => void onArchive(table)}>
-        {table.isActive ? "Archive table" : "Restore table"}
+      </label>
+      <label>
+        Shape
+        <select defaultValue={table.shape} name="shape">
+          <option value="rectangle">Rectangle</option>
+          <option value="circle">Circle</option>
+          <option value="square">Square</option>
+          <option value="custom">Custom</option>
+        </select>
+      </label>
+      <label>
+        Zone
+        <select defaultValue={table.zoneId} name="zoneId">
+          {zones.map((zone) => (
+            <option key={zone.id} value={zone.id}>
+              {zone.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <fieldset className="number-grid">
+        <legend>Position and size</legend>
+        <label>
+          X
+          <input defaultValue={geom.x} name="x" type="number" />
+        </label>
+        <label>
+          Y
+          <input defaultValue={geom.y} name="y" type="number" />
+        </label>
+        <label>
+          Width
+          <input defaultValue={geom.width ?? 100} name="width" type="number" />
+        </label>
+        <label>
+          Height
+          <input defaultValue={geom.height ?? 70} name="height" type="number" />
+        </label>
+        <label>
+          Rotation
+          <input
+            defaultValue={geom.rotation ?? 0}
+            name="rotation"
+            type="number"
+          />
+        </label>
+      </fieldset>
+      <button type="submit">Save Table</button>
+      <button
+        className={table.isActive ? "danger" : "secondary"}
+        onClick={() => void onArchive(table)}
+        type="button"
+      >
+        {table.isActive ? "Archive Table" : "Restore Table"}
       </button>
     </form>
   );
@@ -409,10 +505,16 @@ function ZoneForm({
         });
       }}
     >
-      <h3>Add zone</h3>
-      <input name="name" placeholder="Zone name" />
-      <input name="sortOrder" placeholder="0" type="number" />
-      <button type="submit">Add zone</button>
+      <h3>Add Zone</h3>
+      <label>
+        Name
+        <input name="name" placeholder="Patio…" required />
+      </label>
+      <label>
+        Sort order
+        <input defaultValue={0} name="sortOrder" type="number" />
+      </label>
+      <button type="submit">Add Zone</button>
     </form>
   );
 }
@@ -442,21 +544,43 @@ function AddTableForm({
         });
       }}
     >
-      <h3>Add table</h3>
-      <input name="label" placeholder="Label" />
-      <input name="capacityLabel" placeholder="Capacity" />
-      <select name="zoneId" defaultValue={zones[0]?.id}>
-        {zones.map((zone) => (
-          <option key={zone.id} value={zone.id}>
-            {zone.name}
-          </option>
-        ))}
-      </select>
+      <h3>Add Table</h3>
+      <label>
+        Label
+        <input name="label" placeholder="T12…" required />
+      </label>
+      <label>
+        Capacity label
+        <input name="capacityLabel" placeholder="4…" required />
+      </label>
+      <label>
+        Zone
+        <select defaultValue={zones[0]?.id} name="zoneId" required>
+          {zones.map((zone) => (
+            <option key={zone.id} value={zone.id}>
+              {zone.name}
+            </option>
+          ))}
+        </select>
+      </label>
       <button disabled={zones.length === 0} type="submit">
-        Add table
+        Add Table
       </button>
     </form>
   );
+}
+
+async function readErrorMessage(response: Response): Promise<string> {
+  const body = await response.text();
+  try {
+    const parsed = JSON.parse(body) as { error?: { message?: string } };
+    if (parsed.error?.message) {
+      return parsed.error.message;
+    }
+  } catch {
+    // non-JSON error bodies still get shown
+  }
+  return body.trim() || "Request failed.";
 }
 
 function tableRequest(table: Table): TableRequest {

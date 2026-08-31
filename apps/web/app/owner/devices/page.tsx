@@ -14,7 +14,7 @@ export default async function DevicesPage() {
   ]);
 
   return (
-    <main className="page">
+    <main className="page" id="main">
       <section className="page-heading">
         <p>Devices</p>
         <h1>Display and operational fleet</h1>

@@ -5,6 +5,7 @@
   "workspaces": [
     "apps/web",
     "apps/guest",
+    "apps/landing_v2",
     "packages/api-contract",
     "packages/event-schema",
     "packages/typescript-seatd-client"
