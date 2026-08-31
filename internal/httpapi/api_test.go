@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/kadebhug/seatd_v2/internal/app"
+	"github.com/kadebhug/seatd_v2/internal/domain/configuration"
 )
 
 func TestCommandRequiresDevelopmentHeaders(t *testing.T) {
@@ -102,6 +103,26 @@ func TestCreateFloorRejectsUnknownBodyFields(t *testing.T) {
 	handler.ServeHTTP(rec, req)
 
 	assertAPIError(t, rec, http.StatusBadRequest, "validation_failed")
+}
+
+func TestWriteConfigurationErrorDuplicateZoneName(t *testing.T) {
+	t.Parallel()
+
+	api := &API{}
+	rec := httptest.NewRecorder()
+	api.writeConfigurationError(rec, configuration.ConflictError{
+		Constraint: "zones_floor_id_name_key",
+	})
+
+	assertAPIError(t, rec, http.StatusConflict, "already_exists")
+	var response errorResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode error response: %v", err)
+	}
+	want := "a zone with this name already exists on this floor"
+	if response.Error.Message != want {
+		t.Fatalf("message = %q, want %q", response.Error.Message, want)
+	}
 }
 
 func assertAPIError(t *testing.T, rec *httptest.ResponseRecorder, status int, code string) {

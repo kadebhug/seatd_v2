@@ -197,7 +197,7 @@ func (s *Service) UpdateOrganisation(ctx context.Context, arg UpdateOrganisation
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrNotFound
 			}
-			return fmt.Errorf("updating organisation: %w", err)
+			return wrapWriteError("updating organisation", err)
 		}
 		result = updated
 		return nil
@@ -242,7 +242,7 @@ func (s *Service) UpdateLocation(ctx context.Context, arg UpdateLocationParams) 
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrNotFound
 			}
-			return fmt.Errorf("updating location: %w", err)
+			return wrapWriteError("updating location", err)
 		}
 		result = updated
 		return nil
@@ -274,7 +274,7 @@ func (s *Service) CreateFloor(ctx context.Context, arg UpsertFloorParams) (db.Fl
 			BackgroundAssetRef: nullableText(arg.BackgroundAssetRef),
 		})
 		if err != nil {
-			return fmt.Errorf("creating floor: %w", err)
+			return wrapWriteError("creating floor", err)
 		}
 		result = floor
 		return nil
@@ -314,7 +314,7 @@ func (s *Service) UpdateFloor(ctx context.Context, arg UpsertFloorParams) (db.Fl
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrVersionConflict
 			}
-			return fmt.Errorf("updating floor: %w", err)
+			return wrapWriteError("updating floor", err)
 		}
 		result = floor
 		return nil
@@ -347,7 +347,7 @@ func (s *Service) CreateZone(ctx context.Context, arg UpsertZoneParams) (db.Zone
 			SortOrder:      arg.SortOrder,
 		})
 		if err != nil {
-			return fmt.Errorf("creating zone: %w", err)
+			return wrapWriteError("creating zone", err)
 		}
 		result = zone
 		return nil
@@ -380,7 +380,7 @@ func (s *Service) UpdateZone(ctx context.Context, arg UpsertZoneParams) (db.Zone
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrVersionConflict
 			}
-			return fmt.Errorf("updating zone: %w", err)
+			return wrapWriteError("updating zone", err)
 		}
 		result = zone
 		return nil
@@ -408,7 +408,7 @@ func (s *Service) ArchiveZone(ctx context.Context, actor TenantActor, id, floorI
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrVersionConflict
 			}
-			return fmt.Errorf("archiving zone: %w", err)
+			return wrapWriteError("archiving zone", err)
 		}
 		result = zone
 		return nil
@@ -441,7 +441,7 @@ func (s *Service) CreateTable(ctx context.Context, arg UpsertTableParams) (db.Ta
 			Geometry:       geometry,
 		})
 		if err != nil {
-			return fmt.Errorf("creating table: %w", err)
+			return wrapWriteError("creating table", err)
 		}
 		if _, err := q.CreateTableOccupancy(ctx, db.CreateTableOccupancyParams{
 			TableID:        table.ID,
@@ -486,7 +486,7 @@ func (s *Service) UpdateTable(ctx context.Context, arg UpsertTableParams) (db.Ta
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrVersionConflict
 			}
-			return fmt.Errorf("updating table: %w", err)
+			return wrapWriteError("updating table", err)
 		}
 		result = table
 		return nil
@@ -532,7 +532,7 @@ func (s *Service) changeFloorActive(ctx context.Context, actor TenantActor, id u
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrVersionConflict
 			}
-			return fmt.Errorf("changing floor active state: %w", err)
+			return wrapWriteError("changing floor active state", err)
 		}
 		result = floor
 		return nil
@@ -570,7 +570,7 @@ func (s *Service) changeTableActive(ctx context.Context, actor TenantActor, id u
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrVersionConflict
 			}
-			return fmt.Errorf("changing table active state: %w", err)
+			return wrapWriteError("changing table active state", err)
 		}
 		result = table
 		return nil

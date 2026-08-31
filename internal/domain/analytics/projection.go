@@ -433,8 +433,8 @@ INSERT INTO analytics_hourly_table_metrics (
     occupancy_seconds, utilisation_basis_seconds, utilisation_rate, completed_session_count,
     turnover_rate, avg_session_seconds, p50_session_seconds, p90_session_seconds,
     assist_request_count, avg_assist_response_seconds, avg_assist_resolution_seconds, anomaly_count
-) VALUES ($1, $2, $3, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
-`, metricArgs(organisationID, locationID, tableID, day, start, end, metric)...)
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+`, hourlyMetricArgs(organisationID, locationID, tableID, start, end, metric)...)
 		} else {
 			_, err = tx.Exec(ctx, `
 INSERT INTO analytics_daily_table_metrics (
@@ -624,11 +624,15 @@ func scanTimePoint(rows pgx.Rows) (TimePoint, error) {
 }
 
 func metricArgs(organisationID uuid.UUID, locationID uuid.UUID, groupID uuid.UUID, day time.Time, start time.Time, end time.Time, metric Metric) []any {
+	return append([]any{organisationID, locationID, groupID, day}, metricValues(start, end, metric)...)
+}
+
+func hourlyMetricArgs(organisationID uuid.UUID, locationID uuid.UUID, groupID uuid.UUID, start time.Time, end time.Time, metric Metric) []any {
+	return append([]any{organisationID, locationID, groupID}, metricValues(start, end, metric)...)
+}
+
+func metricValues(start time.Time, end time.Time, metric Metric) []any {
 	return []any{
-		organisationID,
-		locationID,
-		groupID,
-		day,
 		start,
 		end,
 		metric.ActiveTableCount,

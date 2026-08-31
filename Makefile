@@ -1,7 +1,7 @@
 SHELL := /usr/bin/env bash
 .DEFAULT_GOAL := help
 
-.PHONY: help bootstrap check generate fmt lint test build start start-frontends clean
+.PHONY: help bootstrap check generate fmt lint test build start start-frontends start-landing clean
 
 help: ## List supported local commands.
 	@awk 'BEGIN {FS = ":.*## "; printf "Seatd development commands:\n"} /^[a-zA-Z_-]+:.*## / {printf "  %-16s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -32,6 +32,9 @@ start: ## Start the api, worker, and realtime backends.
 
 start-frontends: ## Start the web and guest frontends.
 	@./scripts/start-frontends.sh
+
+start-landing: ## Start the marketing landing page.
+	npm run dev --workspace=@seatd/landing
 
 clean: ## Remove generated local build output.
 	@./scripts/run-workspace-command.sh clean

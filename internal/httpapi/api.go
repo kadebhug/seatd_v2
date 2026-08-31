@@ -1721,11 +1721,16 @@ func (api *API) writeDomainError(w http.ResponseWriter, err error) {
 }
 
 func (api *API) writeConfigurationError(w http.ResponseWriter, err error) {
+	var conflict configuration.ConflictError
 	switch {
 	case errors.Is(err, configuration.ErrForbidden):
 		writeError(w, http.StatusForbidden, "forbidden", "permission denied", nil)
 	case errors.Is(err, configuration.ErrValidation):
 		writeError(w, http.StatusBadRequest, "validation_failed", "request validation failed", nil)
+	case errors.As(err, &conflict):
+		writeError(w, http.StatusConflict, "already_exists", conflict.Error(), nil)
+	case errors.Is(err, configuration.ErrConflict):
+		writeError(w, http.StatusConflict, "already_exists", "a resource with this unique value already exists", nil)
 	case errors.Is(err, configuration.ErrVersionConflict):
 		writeError(w, http.StatusConflict, "version_conflict", "entity version conflict", nil)
 	case errors.Is(err, configuration.ErrNotFound):
