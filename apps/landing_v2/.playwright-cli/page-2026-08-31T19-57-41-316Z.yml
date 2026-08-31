@@ -1,0 +1,447 @@
+- generic [ref=f1e1]:
+  - link "Skip to main content" [ref=f1e2] [cursor=pointer]:
+    - /url: "#main"
+  - banner:
+    - generic [ref=f1e3]:
+      - link [ref=f1e4] [cursor=pointer]:
+        - /url: /
+        - img "Seatd" [ref=f1e6]
+      - navigation "Primary" [ref=f1e7]:
+        - link "Product" [ref=f1e8] [cursor=pointer]:
+          - /url: /#product
+        - link "How it works" [ref=f1e9] [cursor=pointer]:
+          - /url: /#how-it-works
+        - link "Restaurants" [ref=f1e10] [cursor=pointer]:
+          - /url: /#restaurants
+        - link "Pricing" [ref=f1e11] [cursor=pointer]:
+          - /url: /#pricing
+      - link [ref=f1e13] [cursor=pointer]:
+        - /url: /#demo
+  - main [ref=f1e17]:
+    - generic [ref=f1e18]:
+      - generic [ref=f1e19]:
+        - paragraph [ref=f1e20]: Restaurant floor operations
+        - heading "Know what’s happening on your floor." [level=1] [ref=f1e21]
+        - paragraph [ref=f1e22]: Seatd shows table status live, lets guests ask from their table, and keeps service coordinated.
+        - generic [ref=f1e23]:
+          - link [ref=f1e24] [cursor=pointer]:
+            - /url: /#demo
+          - link "See how it works" [ref=f1e28] [cursor=pointer]:
+            - /url: /#how-it-works
+      - generic [ref=f1e31]:
+        - figure [ref=f1e32]:
+          - generic [ref=f1e33]:
+            - paragraph [ref=f1e34]: Marlowe's/Main floor
+            - paragraph [ref=f1e35]: 3 available, 4 occupied, 1 attention
+          - img "Marlowe's Main floor floor plan" [ref=f1e36]:
+            - generic "Host"
+            - generic "T18, Available, seats 2" [ref=f1e37]:
+              - strong [ref=f1e38]: T18
+              - generic [ref=f1e39]: Available
+            - generic "T02, Occupied, seats 2" [ref=f1e40]:
+              - strong [ref=f1e41]: T02
+              - generic [ref=f1e42]: Occupied
+            - generic "T04, Available, seats 4" [ref=f1e574]:
+              - strong [ref=f1e44]: T04
+              - generic [ref=f1e45]: Available
+            - generic "T06, Occupied, seats 4" [ref=f1e46]:
+              - strong [ref=f1e47]: T06
+              - generic [ref=f1e48]: Occupied
+            - generic "T08, Occupied, seats 2" [ref=f1e49]:
+              - strong [ref=f1e50]: T08
+              - generic [ref=f1e51]: Occupied
+            - generic "T12, Available, seats 4" [ref=f1e52]:
+              - strong [ref=f1e53]: T12
+              - generic [ref=f1e54]: Available
+            - generic "T20, Attention, seats 4" [ref=f1e575]:
+              - strong [ref=f1e56]: T20
+              - generic [ref=f1e57]: Attention
+            - generic "T14, Occupied, seats 4" [ref=f1e58]:
+              - strong [ref=f1e59]: T14
+              - generic [ref=f1e60]: Occupied
+        - complementary "Live service sequence" [ref=f1e61]:
+          - generic [ref=f1e62]:
+            - paragraph [ref=f1e63]: Guest
+            - paragraph [ref=f1e64]: Table 20
+            - paragraph [ref=f1e65]: Request bill
+          - generic [ref=f1e66]:
+            - paragraph [ref=f1e67]: Waiter
+            - paragraph [ref=f1e68]: Floor
+            - paragraph [ref=f1e69]: New request
+          - generic [ref=f1e70]:
+            - paragraph [ref=f1e71]: Display
+            - paragraph [ref=f1e72]: Entrance
+            - paragraph [ref=f1e73]: 3 tables free
+    - list [ref=f1e75]:
+      - listitem [ref=f1e76]: Built for busy hospitality teams
+      - listitem [ref=f1e77]: No guest app required
+      - listitem [ref=f1e78]: Works alongside your existing systems
+      - listitem [ref=f1e79]: Live floor updates
+      - listitem [ref=f1e80]: Simple table QR experience
+    - generic [ref=f1e82]:
+      - img "Service aisle between restaurant tables during a busy period" [ref=f1e84]
+      - generic [ref=f1e85]:
+        - heading "Busy service shouldn’t depend on everyone remembering everything." [level=2] [ref=f1e86]
+        - list [ref=f1e87]:
+          - listitem [ref=f1e88]:
+            - heading "Staff are not always sure which tables are free." [level=3] [ref=f1e89]
+            - paragraph [ref=f1e90]: Availability lives in someone’s head, or in a walk between the patio and the main floor.
+          - listitem [ref=f1e91]:
+            - heading "Guests struggle to get attention when the room is full." [level=3] [ref=f1e92]
+            - paragraph [ref=f1e93]: Waving across a busy section is slow for the guest and noisy for the floor.
+          - listitem [ref=f1e94]:
+            - heading "Sections drift out of sync." [level=3] [ref=f1e95]
+            - paragraph [ref=f1e96]: Bar, dining, and outdoor seating become separate pictures of the same service.
+          - listitem [ref=f1e97]:
+            - heading "Managers see the floor, not the pattern." [level=3] [ref=f1e98]
+            - paragraph [ref=f1e99]: You can feel a tough Saturday. It is harder to see where attention actually went.
+    - generic [ref=f1e101]:
+      - generic [ref=f1e102]:
+        - heading "One shared view of your restaurant floor." [level=2] [ref=f1e103]
+        - paragraph [ref=f1e104]: Seatd connects the people who need to know what is happening, without asking guests to join another app.
+      - generic [ref=f1e105]:
+        - article [ref=f1e106]:
+          - heading "Walk-in guest" [level=3] [ref=f1e107]
+          - paragraph [ref=f1e108]: Sees where seating is available
+        - article [ref=f1e109]:
+          - heading "Seated guest" [level=3] [ref=f1e110]
+          - paragraph [ref=f1e111]: Asks for help from the table
+        - article [ref=f1e112]:
+          - heading "Waiter" [level=3] [ref=f1e113]
+          - paragraph [ref=f1e114]: Works from a live floor
+        - article [ref=f1e115]:
+          - heading "Owner" [level=3] [ref=f1e116]
+          - paragraph [ref=f1e117]: Configures the venue and stays visible
+    - generic [ref=f1e119]:
+      - generic [ref=f1e120]:
+        - heading "See the whole floor at a glance." [level=2] [ref=f1e121]
+        - paragraph [ref=f1e122]: Give staff a live visual view of which tables are available, occupied, or need attention across every service area. Less walking around just to find out what is happening.
+      - figure [ref=f1e123]:
+        - generic [ref=f1e124]:
+          - paragraph [ref=f1e125]: Marlowe's/Main floor
+          - paragraph [ref=f1e126]: 3 available, 4 occupied, 1 attention
+        - img "Marlowe's Main floor floor plan" [ref=f1e127]:
+          - generic "Host"
+          - generic "T18, Available, seats 2" [ref=f1e128]:
+            - strong [ref=f1e129]: T18
+            - generic [ref=f1e130]: Available
+          - generic "T02, Occupied, seats 2" [ref=f1e131]:
+            - strong [ref=f1e132]: T02
+            - generic [ref=f1e133]: Occupied
+          - generic "T04, Available, seats 4" [ref=f1e552]:
+            - strong [ref=f1e135]: T04
+            - generic [ref=f1e136]: Available
+          - generic "T06, Occupied, seats 4" [ref=f1e137]:
+            - strong [ref=f1e138]: T06
+            - generic [ref=f1e139]: Occupied
+          - generic "T08, Occupied, seats 2" [ref=f1e140]:
+            - strong [ref=f1e141]: T08
+            - generic [ref=f1e142]: Occupied
+          - generic "T12, Available, seats 4" [ref=f1e143]:
+            - strong [ref=f1e144]: T12
+            - generic [ref=f1e145]: Available
+          - generic "T20, Attention, seats 4" [ref=f1e576]:
+            - strong [ref=f1e147]: T20
+            - generic [ref=f1e148]: Attention
+          - generic "T14, Occupied, seats 4" [ref=f1e149]:
+            - strong [ref=f1e150]: T14
+            - generic [ref=f1e151]: Occupied
+        - generic [ref=f1e152]:
+          - generic [ref=f1e153]: Available
+          - generic [ref=f1e155]: Occupied
+          - generic [ref=f1e157]: Attention
+      - link [ref=f1e160] [cursor=pointer]:
+        - /url: /#demo
+    - generic [ref=f1e165]:
+      - article [ref=f1e166]:
+        - img "Restaurant entrance looking through to the dining room" [ref=f1e167]
+        - generic [ref=f1e169]:
+          - generic [ref=f1e170]:
+            - heading "A guest walks in" [level=3] [ref=f1e171]
+            - paragraph [ref=f1e172]: The entrance display shows where seating is available, including patio and bar, without sending the host on a tour.
+          - generic [ref=f1e173]:
+            - paragraph [ref=f1e174]: Entrance display
+            - heading "Seating available now" [level=3] [ref=f1e175]
+            - list [ref=f1e176]:
+              - listitem [ref=f1e177]:
+                - generic [ref=f1e178]: Main floor
+                - strong [ref=f1e179]: 8 tables
+              - listitem [ref=f1e180]:
+                - generic [ref=f1e181]: Patio
+                - strong [ref=f1e182]: 3 tables
+              - listitem [ref=f1e183]:
+                - generic [ref=f1e184]: Bar
+                - strong [ref=f1e185]: 2 high-tops
+              - listitem [ref=f1e186]:
+                - generic [ref=f1e187]: Lounge
+                - strong [ref=f1e188]: Wait 10 min
+      - generic [ref=f1e189]:
+        - article [ref=f1e190]:
+          - heading "During service" [level=3] [ref=f1e191]
+          - paragraph [ref=f1e192]: The waiter sees which tables are occupied and where attention is needed, from a handheld live floor.
+        - article [ref=f1e193]:
+          - img "Covered patio seating at a restaurant" [ref=f1e194]
+          - generic [ref=f1e196]:
+            - heading "At the table" [level=3] [ref=f1e197]
+            - paragraph [ref=f1e198]: The guest scans the table QR, requests the bill, and staff see Table 14 waiting.
+    - generic [ref=f1e200]:
+      - generic [ref=f1e201]:
+        - heading "Seatd works alongside the systems you already use." [level=2] [ref=f1e202]
+        - paragraph [ref=f1e203]: You do not replace the POS to see the floor. Map the room, give the team access, put QR codes on tables, and run service from one view.
+      - list [ref=f1e204]:
+        - listitem [ref=f1e205]:
+          - heading "Map your restaurant" [level=3] [ref=f1e206]
+          - paragraph [ref=f1e207]: Create floors and tables that match the physical venue.
+        - listitem [ref=f1e208]:
+          - heading "Give your team access" [level=3] [ref=f1e209]
+          - paragraph [ref=f1e210]: Staff use the live floor during service.
+        - listitem [ref=f1e211]:
+          - heading "Add table QR codes" [level=3] [ref=f1e212]
+          - paragraph [ref=f1e213]: Guests request help without installing anything.
+        - listitem [ref=f1e214]:
+          - heading "Run service" [level=3] [ref=f1e215]
+          - paragraph [ref=f1e216]: Table activity and guest requests stay visible in one place.
+    - generic [ref=f1e218]:
+      - generic [ref=f1e219]:
+        - heading "No app. No account. Just scan and ask." [level=2] [ref=f1e220]
+        - paragraph [ref=f1e221]: Guests request help in seconds from the table QR. Staff see where attention is needed. Guests do not download an app, create an account, enter an email, or join a loyalty programme just to ask for assistance.
+      - generic [ref=f1e222]:
+        - generic [ref=f1e225]:
+          - generic [ref=f1e226]:
+            - generic [ref=f1e227]:
+              - paragraph [ref=f1e228]: Guest assist
+              - heading "Marlowe's" [level=3] [ref=f1e229]
+            - generic [ref=f1e230]: Table 14
+          - generic [ref=f1e554]:
+            - paragraph [ref=f1e232]: Request sent
+            - paragraph [ref=f1e577]: Staff can see Table 14 needs the bill.
+        - generic [ref=f1e245]:
+          - generic [ref=f1e246]:
+            - generic [ref=f1e247]:
+              - paragraph [ref=f1e248]: Waiter view
+              - heading "Table 14" [level=3] [ref=f1e249]
+            - generic [ref=f1e250]: 00:51
+          - paragraph [ref=f1e254]:
+            - text: "Request:"
+            - strong [ref=f1e255]: Bill
+          - paragraph [ref=f1e256]: The guest is about to send a new request from the table QR.
+          - generic [ref=f1e257]:
+            - generic [ref=f1e258]: Main floor
+            - generic [ref=f1e259]: Seats 4
+            - generic [ref=f1e260]: Occupied
+    - generic [ref=f1e262]:
+      - generic [ref=f1e263]:
+        - heading "Your floor should never be a guessing game." [level=2] [ref=f1e264]
+        - paragraph [ref=f1e265]: See table status across every area of the venue from one live operational view. Built for rooms that do not fit on a single sight line.
+      - generic [ref=f1e266]:
+        - tablist "Service areas" [ref=f1e267]:
+          - tab "Main floor" [ref=f1e268]
+          - tab "Patio" [ref=f1e269]
+          - tab "Bar" [ref=f1e270]
+          - tab "Lounge" [active] [selected] [ref=f1e271]
+        - paragraph [ref=f1e272]: Upstairs seating
+        - figure [ref=f1e273]:
+          - generic [ref=f1e274]:
+            - paragraph [ref=f1e275]: Marlowe's/Lounge
+            - paragraph [ref=f1e276]: 2 available, 3 occupied, 0 attention
+          - img "Marlowe's Lounge floor plan" [ref=f1e578]:
+            - generic "L01, Occupied, seats 4" [ref=f1e579]:
+              - strong [ref=f1e580]: L01
+              - generic [ref=f1e581]: Occupied
+            - generic "L02, Available, seats 2" [ref=f1e582]:
+              - strong [ref=f1e583]: L02
+              - generic [ref=f1e584]: Available
+            - generic "L03, Occupied, seats 4" [ref=f1e585]:
+              - strong [ref=f1e586]: L03
+              - generic [ref=f1e587]: Occupied
+            - generic "L04, Available, seats 2" [ref=f1e588]:
+              - strong [ref=f1e589]: L04
+              - generic [ref=f1e590]: Available
+            - generic "L05, Occupied, seats 4" [ref=f1e591]:
+              - strong [ref=f1e592]: L05
+              - generic [ref=f1e593]: Occupied
+          - generic [ref=f1e302]:
+            - generic [ref=f1e303]: Available
+            - generic [ref=f1e305]: Occupied
+            - generic [ref=f1e307]: Attention
+    - generic [ref=f1e310]:
+      - generic [ref=f1e311]:
+        - heading "Why this is worth paying for every month." [level=2] [ref=f1e312]
+        - paragraph [ref=f1e313]: Less uncertainty, faster decisions, better service flow, a clearer guest experience, and a more productive floor.
+        - link [ref=f1e315] [cursor=pointer]:
+          - /url: /#demo
+      - generic [ref=f1e319]:
+        - article [ref=f1e320]:
+          - heading "Better floor visibility" [level=3] [ref=f1e321]
+          - paragraph [ref=f1e322]: Your team knows what is happening without checking every section in person.
+        - article [ref=f1e323]:
+          - heading "Faster guest response" [level=3] [ref=f1e324]
+          - paragraph [ref=f1e325]: Requests show staff exactly which table needs attention.
+        - article [ref=f1e326]:
+          - heading "Easier coordination" [level=3] [ref=f1e327]
+          - paragraph [ref=f1e328]: Front-of-house shares one operational picture across the shift.
+        - article [ref=f1e329]:
+          - heading "Better use of seating" [level=3] [ref=f1e330]
+          - paragraph [ref=f1e331]: See availability across floors, patios, bars, and lounges from one view.
+    - generic [ref=f1e333]:
+      - generic [ref=f1e334]:
+        - heading "Built for floors that get busy." [level=2] [ref=f1e335]
+        - paragraph [ref=f1e336]: High-volume rooms, multiple service areas, and teams that move between sections.
+      - generic [ref=f1e337]:
+        - article [ref=f1e338]:
+          - img "Dining room with rows of dark timber tables and bone plaster walls" [ref=f1e339]
+          - generic [ref=f1e341]:
+            - heading "High-volume restaurants" [level=3] [ref=f1e342]
+            - paragraph [ref=f1e343]: Casual dining rooms where table state changes all night.
+        - article [ref=f1e344]:
+          - img "Bar with stools, high-tops, and a long timber counter" [ref=f1e345]
+          - generic [ref=f1e347]:
+            - heading "Pubs and sports bars" [level=3] [ref=f1e348]
+            - paragraph [ref=f1e349]: Seating and guest attention that move with the game and the bar.
+        - article [ref=f1e350]:
+          - img "Covered restaurant patio with timber tables and garden beyond" [ref=f1e351]
+          - generic [ref=f1e353]:
+            - heading "Multi-area venues" [level=3] [ref=f1e354]
+            - paragraph [ref=f1e355]: Patio, deck, lounge, and upstairs seating that need the same picture.
+        - article [ref=f1e356]:
+          - img "Upstairs lounge with low seating and warm lamps" [ref=f1e357]
+          - generic [ref=f1e359]:
+            - heading "Restaurant groups" [level=3] [ref=f1e360]
+            - paragraph [ref=f1e361]: Operators who want the same floor language across more than one site.
+    - generic [ref=f1e363]:
+      - generic [ref=f1e364]:
+        - heading "Your POS runs the transaction. Seatd runs the floor." [level=2] [ref=f1e365]
+        - paragraph [ref=f1e366]: Seatd is complementary. It does not ask you to throw out reservations or payments software.
+      - generic [ref=f1e367]:
+        - article [ref=f1e368]:
+          - heading "POS" [level=3] [ref=f1e369]
+          - paragraph [ref=f1e370]: Orders, bills, and payments.
+          - list [ref=f1e371]:
+            - listitem [ref=f1e372]:
+              - generic [ref=f1e373]: Transactions
+            - listitem [ref=f1e374]:
+              - generic [ref=f1e375]: Kitchen tickets
+            - listitem [ref=f1e376]:
+              - generic [ref=f1e377]: End-of-night reporting
+        - article [ref=f1e378]:
+          - heading "Reservations" [level=3] [ref=f1e379]
+          - paragraph [ref=f1e380]: Booking future tables.
+          - list [ref=f1e381]:
+            - listitem [ref=f1e382]:
+              - generic [ref=f1e383]: Tonight’s book
+            - listitem [ref=f1e384]:
+              - generic [ref=f1e385]: Arrival lists
+            - listitem [ref=f1e386]:
+              - generic [ref=f1e387]: Waitlist for later
+        - article [ref=f1e388]:
+          - heading "Seatd" [level=3] [ref=f1e389]
+          - paragraph [ref=f1e390]: Live floor visibility, guest assistance, and floor operations.
+          - list [ref=f1e391]:
+            - listitem [ref=f1e392]:
+              - generic [ref=f1e395]: Live visual floor status
+            - listitem [ref=f1e396]:
+              - generic [ref=f1e399]: Guest table assistance
+            - listitem [ref=f1e400]:
+              - generic [ref=f1e403]: Public availability view
+            - listitem [ref=f1e404]:
+              - generic [ref=f1e407]: Multi-area awareness
+            - listitem [ref=f1e408]:
+              - generic [ref=f1e411]: No guest app required
+    - generic [ref=f1e414]:
+      - heading "Priced per location, sized to your floor." [level=2] [ref=f1e415]
+      - paragraph [ref=f1e416]: Seatd is a monthly product for a venue, not a per-seat gadget. We’ll confirm numbers on the demo once we have seen how your floor is laid out.
+    - generic [ref=f1e418]:
+      - heading "Questions owners actually ask." [level=2] [ref=f1e419]
+      - generic [ref=f1e420]:
+        - group [ref=f1e421]:
+          - generic "Does Seatd replace my POS?" [ref=f1e422] [cursor=pointer]
+        - group [ref=f1e423]:
+          - generic "Do guests need to download an app?" [ref=f1e424] [cursor=pointer]
+        - group [ref=f1e425]:
+          - generic "What happens if the internet connection drops?" [ref=f1e426] [cursor=pointer]
+        - group [ref=f1e427]:
+          - generic "Can we use our existing floor layout?" [ref=f1e428] [cursor=pointer]
+        - group [ref=f1e429]:
+          - generic "Can I have multiple floors or seating areas?" [ref=f1e430] [cursor=pointer]
+        - group [ref=f1e431]:
+          - generic "Can staff see guest requests?" [ref=f1e432] [cursor=pointer]
+        - group [ref=f1e433]:
+          - generic "Can I customise the guest request buttons?" [ref=f1e434] [cursor=pointer]
+        - group [ref=f1e435]:
+          - generic "Does this handle reservations?" [ref=f1e436] [cursor=pointer]
+        - group [ref=f1e437]:
+          - generic "Does it process payments?" [ref=f1e438] [cursor=pointer]
+    - generic [ref=f1e440]:
+      - generic [ref=f1e441]:
+        - heading "See what Seatd would look like in your restaurant." [level=2] [ref=f1e442]
+        - paragraph [ref=f1e443]: Tell us about your venue. We’ll show how Seatd fits your floor, then walk through the owner, waiter, display, and guest experience.
+        - list [ref=f1e444]:
+          - listitem [ref=f1e445]: 1. Tell us about your venue
+          - listitem [ref=f1e446]: 2. We’ll show how Seatd would fit your floor
+          - listitem [ref=f1e447]: 3. See owner, waiter, display, and guest views
+          - listitem [ref=f1e448]: 4. Ask about setup and rollout
+      - generic [ref=f1e449]:
+        - generic [ref=f1e450]:
+          - generic [ref=f1e451]:
+            - generic [ref=f1e452]: Name
+            - textbox "Name" [ref=f1e453]:
+              - /placeholder: Alex Moyo…
+          - generic [ref=f1e454]:
+            - generic [ref=f1e455]: Restaurant / group name
+            - textbox "Restaurant / group name" [ref=f1e456]:
+              - /placeholder: Marlowe’s…
+        - generic [ref=f1e457]:
+          - generic [ref=f1e458]:
+            - generic [ref=f1e459]: Email
+            - textbox "Email" [ref=f1e460]:
+              - /placeholder: you@venue.co.za…
+          - generic [ref=f1e461]:
+            - generic [ref=f1e462]: Phone (optional)
+            - textbox "Phone (optional)" [ref=f1e463]:
+              - /placeholder: +27 82 000 0000…
+        - generic [ref=f1e464]:
+          - generic [ref=f1e465]: Number of tables or locations
+          - combobox "Number of tables or locations" [ref=f1e466]:
+            - option "Select a range…" [selected]
+            - option "Under 25 tables"
+            - option "25-50 tables"
+            - option "50+ tables"
+            - option "Multiple locations"
+        - button "Book a Demo" [ref=f1e467]:
+          - text: Book a Demo
+          - generic [ref=f1e468]: →
+  - contentinfo [ref=f1e469]:
+    - generic [ref=f1e470]:
+      - generic [ref=f1e471]:
+        - img "Seatd" [ref=f1e473]
+        - paragraph [ref=f1e474]: Restaurant floor operations. Live table status and guest assistance, without replacing the systems you already run.
+      - generic [ref=f1e475]:
+        - paragraph [ref=f1e476]: Product
+        - list [ref=f1e477]:
+          - listitem [ref=f1e478]:
+            - link "Product" [ref=f1e479] [cursor=pointer]:
+              - /url: /#product
+          - listitem [ref=f1e480]:
+            - link "How it works" [ref=f1e481] [cursor=pointer]:
+              - /url: /#how-it-works
+          - listitem [ref=f1e482]:
+            - link "Pricing" [ref=f1e483] [cursor=pointer]:
+              - /url: /#pricing
+          - listitem [ref=f1e484]:
+            - link "Restaurants" [ref=f1e485] [cursor=pointer]:
+              - /url: /#restaurants
+      - generic [ref=f1e486]:
+        - paragraph [ref=f1e487]: Company
+        - list [ref=f1e488]:
+          - listitem [ref=f1e489]:
+            - link "Contact" [ref=f1e490] [cursor=pointer]:
+              - /url: mailto:hello@seatd.app
+          - listitem [ref=f1e491]:
+            - link "Privacy" [ref=f1e492] [cursor=pointer]:
+              - /url: /privacy
+          - listitem [ref=f1e493]:
+            - link "Terms" [ref=f1e494] [cursor=pointer]:
+              - /url: /terms
+    - paragraph [ref=f1e496]: © Seatd
+  - button "Open Next.js Dev Tools" [ref=f1e502] [cursor=pointer]
+  - alert [ref=f1e510]

@@ -17,5 +17,10 @@ node_modules/
 .vscode/
 .DS_Store
 
-# Local planning notes, not part of the product tree
-Seatd_Phased_Implementation_Plan/
+seatd_phased_plan/
+
+.agents/
+.impeccable/
+.codex/
+.cursor/
+.github/
