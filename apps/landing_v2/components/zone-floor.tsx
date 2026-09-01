@@ -54,11 +54,12 @@ export function ZoneFloor() {
             <button
               aria-controls="zone-floor-panel"
               aria-selected={selected}
-              className={`focus-ring min-h-12 rounded-full px-4 text-sm font-semibold transition-[background-color,color,transform] duration-200 ease-[var(--ease-seatd)] ${
+              className={`focus-ring min-h-12 px-4 text-sm font-semibold transition-[background-color,color] duration-200 ease-[var(--ease-seatd)] ${
                 selected
-                  ? "bg-bone text-ink"
-                  : "border border-[color-mix(in_srgb,#f3eee4_18%,transparent)] bg-transparent text-bone"
+                  ? "bg-paper text-ink"
+                  : "border border-[color-mix(in_srgb,#f4efe6_18%,transparent)] bg-transparent text-paper"
               }`}
+              style={{ borderRadius: 10 }}
               data-zone={item.id}
               key={item.id}
               onClick={() => setZone(item.id)}

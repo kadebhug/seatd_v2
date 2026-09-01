@@ -9,7 +9,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  flutter_secure_storage: ^9.2.4
+  flutter_secure_storage: ^10.0.0
   http: ^1.5.0
   seatd_client:
     path: ../../packages/dart-seatd-client

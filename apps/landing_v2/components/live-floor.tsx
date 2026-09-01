@@ -21,6 +21,7 @@ type LiveFloorProps = Readonly<{
   compact?: boolean;
   density?: FloorDensity;
   showKey?: boolean;
+  chrome?: boolean;
   className?: string;
 }>;
 
@@ -40,6 +41,7 @@ export function LiveFloor({
   compact = false,
   density,
   showKey = true,
+  chrome = true,
   className = "",
 }: LiveFloorProps) {
   const scale = density ?? (compact ? "compact" : "room");
@@ -90,20 +92,22 @@ export function LiveFloor({
 
   return (
     <figure className={`grid gap-4 ${className}`}>
-      <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
-        <p className="text-sm font-semibold">
-          <span translate="no">{venue}</span>
-          <span className="mx-2 opacity-40">/</span>
-          {area}
-        </p>
-        <p className="font-mono text-sm font-medium tabular-nums opacity-70">
-          {counts.available} available, {counts.occupied} occupied,{" "}
-          {counts.attention} attention
-        </p>
-      </div>
+      {chrome ? (
+        <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+          <p className="text-sm font-semibold">
+            <span translate="no">{venue}</span>
+            <span className="mx-2 opacity-40">/</span>
+            {area}
+          </p>
+          <p className="font-mono text-sm font-medium tabular-nums opacity-70">
+            {counts.available} available, {counts.occupied} occupied,{" "}
+            {counts.attention} attention
+          </p>
+        </div>
+      ) : null}
       <div
         aria-label={`${venue} ${area} floor plan`}
-        className={`floor-canvas ${activeTableId ? "service-sequence" : ""} ${canvasHeight[scale]}`}
+        className={`floor-canvas ${canvasHeight[scale]}`}
         role="img"
       >
         {fixtures.map((fixture) => (
@@ -145,7 +149,12 @@ export function LiveFloor({
             }
           >
             <strong>{table.label}</strong>
-            <span>{occupancyLabel[table.status]}</span>
+            {/* Circles carry the number only — a round 2-top has no room for a
+                status word, and the fill colour plus the chart legend already
+                say it. Full status stays in the aria-label above. */}
+            {table.shape === "circle" ? null : (
+              <span>{occupancyLabel[table.status]}</span>
+            )}
           </div>
         ))}
       </div>

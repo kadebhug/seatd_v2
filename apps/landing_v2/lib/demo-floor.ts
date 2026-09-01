@@ -59,7 +59,7 @@ export const MAIN_FIXTURES: FloorFixture[] = [
 ];
 
 export const MAIN_FLOOR: DemoTable[] = [
-  t("T18", "2", "dining", "circle", 52, 5, 14, 12, "available"),
+  t("T18", "2", "dining", "circle", 52, 5, 14, 16, "available"),
   t("T02", "2", "dining", "circle", 10, 24, 16, 18, "occupied"),
   t("T04", "4", "dining", "rectangle", 64, 24, 20, 18, "available"),
   t("T06", "4", "dining", "rectangle", 8, 50, 22, 20, "occupied"),

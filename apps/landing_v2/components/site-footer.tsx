@@ -2,6 +2,7 @@ import { BrandLockup } from "./brand-lockup";
 import Link from "next/link";
 
 const product = [
+  { href: "/#walkthrough", label: "Walkthrough" },
   { href: "/#product", label: "Product" },
   { href: "/#how-it-works", label: "How it works" },
   { href: "/#pricing", label: "Pricing" },

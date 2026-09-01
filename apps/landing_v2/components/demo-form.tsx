@@ -87,7 +87,7 @@ export function DemoForm() {
     return (
       <div
         aria-live="polite"
-        className="rounded-[24px] border border-line bg-surface p-8"
+        className="p-2"
         role="status"
       >
         <h3 className="text-2xl font-semibold tracking-tight">
@@ -103,7 +103,7 @@ export function DemoForm() {
 
   return (
     <form
-      className="grid gap-5 rounded-[24px] border border-line bg-surface p-6 md:p-8"
+      className="grid gap-5"
       noValidate
       onSubmit={(event) => void onSubmit(event)}
     >
@@ -216,9 +216,6 @@ export function DemoForm() {
         type="submit"
       >
         {state.kind === "submitting" ? "Sending…" : "Book a Demo"}
-        <span className="cta-icon" aria-hidden="true">
-          →
-        </span>
       </button>
     </form>
   );

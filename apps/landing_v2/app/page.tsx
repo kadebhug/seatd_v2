@@ -1,15 +1,17 @@
-import { ArrowRightIcon, CheckIcon } from "@phosphor-icons/react/dist/ssr";
+import { CheckIcon } from "@phosphor-icons/react/dist/ssr";
 import Image from "next/image";
 import { BookDemoButton } from "../components/book-demo-button";
+import { Clipboard } from "../components/clipboard";
 import { DemoForm } from "../components/demo-form";
 import { EntranceBoard } from "../components/entrance-board";
 import { FaqList } from "../components/faq-list";
 import { GuestAssistStage } from "../components/guest-assist-stage";
-import { HeroServiceMoment } from "../components/hero-service-moment";
+import { HeroClipboard } from "../components/hero-clipboard";
 import { LiveFloor } from "../components/live-floor";
-import { Reveal } from "../components/reveal";
+import { SalesWalkthrough } from "../components/sales-walkthrough";
 import { SiteFooter } from "../components/site-footer";
 import { SiteHeader } from "../components/site-header";
+import { StickyDemoBar } from "../components/sticky-demo-bar";
 import { ZoneFloor } from "../components/zone-floor";
 import { DEMO_VENUE, MAIN_FIXTURES, MAIN_FLOOR } from "../lib/demo-floor";
 
@@ -45,6 +47,25 @@ const roles = [
   { who: "Seated guest", need: "Asks for help from the table" },
   { who: "Waiter", need: "Works from a live floor" },
   { who: "Owner", need: "Configures the venue and stays visible" },
+];
+
+const apps = [
+  {
+    name: "Owner",
+    detail: "Map floors, zones, and table QR actions to match how you run service.",
+  },
+  {
+    name: "Waiter",
+    detail: "Handheld live floor with table status and guest requests in one view.",
+  },
+  {
+    name: "Display",
+    detail: "Entrance board showing availability across dining, patio, bar, and lounge.",
+  },
+  {
+    name: "Guest",
+    detail: "Browser table QR — no download, account, or loyalty signup required.",
+  },
 ];
 
 const steps = [
@@ -112,14 +133,49 @@ const venues = [
   },
 ];
 
+const pricingTiers = [
+  {
+    title: "Small room",
+    scope: "Under 25 tables",
+    includes: [
+      "Live visual floor",
+      "Table QR guest assistance",
+      "Owner and waiter access",
+      "One service area",
+    ],
+  },
+  {
+    title: "Full floor",
+    scope: "25–50 tables",
+    includes: [
+      "Everything in Small room",
+      "Multi-zone awareness",
+      "Entrance availability display",
+      "Patio, bar, and lounge views",
+    ],
+    featured: true,
+  },
+  {
+    title: "Multi-location",
+    scope: "Groups and rollout",
+    includes: [
+      "Everything in Full floor",
+      "Same floor language across sites",
+      "Rollout and onboarding support",
+      "Per-location configuration",
+    ],
+  },
+];
+
 export default function HomePage() {
   return (
     <>
-      <div className="grain" aria-hidden="true" />
       <SiteHeader />
+      <StickyDemoBar />
       <main id="main">
         <Hero />
         <Trust />
+        <SalesGuide />
         <Problem />
         <Promise />
         <Product />
@@ -141,41 +197,35 @@ export default function HomePage() {
 
 function Hero() {
   return (
-    <section className="shell grid min-h-[100dvh] items-end gap-8 pb-10 pt-8 md:pt-10 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.25fr)] lg:items-center lg:gap-12">
-      <div className="max-w-xl">
-        <p className="text-sm font-medium text-muted">
-          Restaurant floor operations
-        </p>
-        <h1 className="mt-3 max-w-[16ch] text-4xl leading-[1.08] font-semibold tracking-tight md:text-5xl lg:text-6xl">
-          Know what’s happening on your floor.
+    <section className="grid min-h-[100dvh] lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.18fr)]">
+      <div className="flex flex-col justify-center px-[max(1.25rem,env(safe-area-inset-left))] py-10 md:px-12 lg:pl-[max(2rem,calc((100vw-1400px)/2+1.25rem))] lg:pr-10">
+        <h1 className="display max-w-[14ch] text-4xl md:text-5xl lg:text-[3.4rem]">
+          Know what’s happening on your floor
+          <span className="period">.</span>
         </h1>
-        <p className="mt-5 max-w-[36ch] text-lg text-muted md:text-xl">
-          Seatd shows table status live, lets guests ask from their table, and
-          keeps service coordinated.
+        <p className="mt-5 max-w-[34ch] text-lg text-muted">
+          See available, occupied, and attention tables without walking the
+          room. Built for owners who run busy floors, not another POS.
         </p>
-        <div className="mt-7 flex flex-wrap items-center gap-5">
+        <div className="mt-7 flex flex-wrap items-center gap-3">
           <BookDemoButton source="hero" />
-          <a
-            className="cta-secondary inline-flex"
-            data-cta="see-how"
-            href="/#how-it-works"
-          >
-            See how it works
-            <ArrowRightIcon aria-hidden="true" size={16} weight="bold" />
+          <a className="cta-secondary" data-cta="see-how" href="/#walkthrough">
+            Walk the page
           </a>
         </div>
       </div>
-      <HeroServiceMoment />
+      <HeroClipboard />
     </section>
   );
 }
 
 function Trust() {
   return (
-    <section className="border-y border-line py-8">
-      <ul className="shell flex flex-wrap gap-x-8 gap-y-3 text-sm font-semibold text-muted">
+    <section className="border-y border-line py-6">
+      <ul className="shell grid gap-x-8 gap-y-3 sm:grid-cols-2 lg:flex lg:flex-wrap">
         {trust.map((item) => (
-          <li className="max-w-[28ch]" key={item}>
+          <li className="trust-item max-w-[28ch]" key={item}>
+            <CheckIcon aria-hidden="true" size={18} weight="bold" />
             {item}
           </li>
         ))}
@@ -184,11 +234,32 @@ function Trust() {
   );
 }
 
+function SalesGuide() {
+  return (
+    <section className="section-anchor py-16 md:py-24" id="walkthrough">
+      <div className="shell grid gap-10 lg:grid-cols-[0.85fr_1.15fr] lg:items-start">
+        <div>
+          <h2 className="display max-w-[14ch] text-3xl md:text-4xl">
+            A page sales can walk on a call
+            <span className="period">.</span>
+          </h2>
+          <p className="mt-5 max-w-[42ch] text-muted">
+            Five beats, one story: the problem, the live floor, guest proof,
+            positioning beside POS, and the demo close. Scroll or jump — each
+            beat links to the section below.
+          </p>
+        </div>
+        <SalesWalkthrough />
+      </div>
+    </section>
+  );
+}
+
 function Problem() {
   return (
-    <section className="section-anchor py-24 md:py-32">
+    <section className="section-anchor py-24 md:py-32" id="problem">
       <div className="shell grid items-center gap-10 lg:grid-cols-[1.15fr_0.85fr]">
-        <div className="relative min-h-[320px] overflow-hidden rounded-[24px] lg:min-h-[560px]">
+        <div className="relative min-h-[320px] overflow-hidden lg:min-h-[560px]">
           <Image
             alt="Service aisle between restaurant tables during a busy period"
             className="object-cover"
@@ -197,19 +268,22 @@ function Problem() {
             src="/images/seatd-service-aisle.webp"
           />
         </div>
-        <Reveal>
-          <h2 className="max-w-[16ch] text-3xl leading-[1.12] font-semibold tracking-tight md:text-5xl">
-            Busy service shouldn’t depend on everyone remembering everything.
+        <div>
+          <h2 className="display max-w-[16ch] text-3xl md:text-5xl">
+            Busy service shouldn’t depend on everyone remembering everything
+            <span className="period">.</span>
           </h2>
           <ul className="mt-10 grid gap-6">
             {problems.map((item) => (
               <li key={item.title}>
-                <h3 className="text-lg font-semibold">{item.title}</h3>
+                <h3 className="font-sans text-lg font-semibold tracking-normal">
+                  {item.title}
+                </h3>
                 <p className="mt-1 max-w-[48ch] text-muted">{item.body}</p>
               </li>
             ))}
           </ul>
-        </Reveal>
+        </div>
       </div>
     </section>
   );
@@ -217,30 +291,31 @@ function Problem() {
 
 function Promise() {
   return (
-    <section
-      className="ink-stage py-24 text-[var(--seatd-ink-stage-fg)] md:py-32"
-      style={{ background: "var(--seatd-ink-stage)" }}
-    >
+    <section className="border-y border-line py-24 md:py-32">
       <div className="shell">
-        <Reveal>
-          <h2 className="max-w-[16ch] text-3xl leading-[1.12] font-semibold tracking-tight md:text-5xl">
-            One shared view of your restaurant floor.
-          </h2>
-          <p className="mt-5 max-w-[54ch] text-[var(--seatd-ink-stage-muted)]">
-            Seatd connects the people who need to know what is happening, without
-            asking guests to join another app.
-          </p>
-        </Reveal>
-        <div className="mt-14 grid gap-px overflow-hidden rounded-[24px] bg-[var(--seatd-ink-stage-line)] md:grid-cols-4">
+        <h2 className="display max-w-[16ch] text-3xl md:text-5xl">
+          One shared view of your restaurant floor
+          <span className="period">.</span>
+        </h2>
+        <p className="mt-5 max-w-[54ch] text-muted">
+          Seatd connects the people who need to know what is happening, without
+          asking guests to join another app.
+        </p>
+        <div className="mt-12 grid gap-px bg-line md:grid-cols-4">
           {roles.map((role) => (
-            <article
-              className="bg-[var(--seatd-ink-stage)] p-6 md:p-8"
-              key={role.who}
-            >
-              <h3 className="text-xl font-semibold">{role.who}</h3>
-              <p className="mt-2 text-[var(--seatd-ink-stage-muted)]">
-                {role.need}
-              </p>
+            <article className="bg-canvas py-6 md:px-6 md:py-8" key={role.who}>
+              <h3 className="font-sans text-xl font-semibold tracking-normal">
+                {role.who}
+              </h3>
+              <p className="mt-2 text-muted">{role.need}</p>
+            </article>
+          ))}
+        </div>
+        <div className="mt-12 grid gap-px bg-line md:grid-cols-2 xl:grid-cols-4">
+          {apps.map((app) => (
+            <article className="app-tile bg-surface px-6 py-7" key={app.name}>
+              <h3 className="font-sans text-lg font-semibold">{app.name}</h3>
+              <p className="mt-2 text-sm text-muted">{app.detail}</p>
             </article>
           ))}
         </div>
@@ -252,25 +327,28 @@ function Promise() {
 function Product() {
   return (
     <section className="section-anchor py-24 md:py-32" id="product">
-      <div className="shell grid gap-16 md:gap-24">
-        <Reveal>
-          <h2 className="max-w-[14ch] text-3xl leading-[1.12] font-semibold tracking-tight md:text-5xl">
-            See the whole floor at a glance.
+      <div className="shell grid gap-12">
+        <div>
+          <h2 className="display max-w-[14ch] text-3xl md:text-5xl">
+            See the whole floor at a glance
+            <span className="period">.</span>
           </h2>
           <p className="mt-5 max-w-[58ch] text-lg text-muted">
-            Give staff a live visual view of which tables are available, occupied,
-            or need attention across every service area. Less walking around just
-            to find out what is happening.
+            Give staff a live visual view of which tables are available,
+            occupied, or need attention across every service area. Less walking
+            around just to find out what is happening.
           </p>
-        </Reveal>
-        <LiveFloor
-          animate
-          area="Main floor"
-          fixtures={MAIN_FIXTURES}
-          tables={MAIN_FLOOR}
-          venue={DEMO_VENUE}
-        />
-        <div className="flex justify-start">
+        </div>
+        <Clipboard className="mx-auto w-full max-w-5xl" stamp="Live floor">
+          <LiveFloor
+            animate
+            area="Main floor"
+            fixtures={MAIN_FIXTURES}
+            tables={MAIN_FLOOR}
+            venue={DEMO_VENUE}
+          />
+        </Clipboard>
+        <div>
           <BookDemoButton source="after-product" />
         </div>
       </div>
@@ -280,9 +358,9 @@ function Product() {
 
 function Scenarios() {
   return (
-    <section className="pb-8">
+    <section className="section-anchor pb-8" id="scenarios">
       <div className="shell grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-        <article className="relative min-h-[420px] overflow-hidden rounded-[24px]">
+        <article className="relative min-h-[420px] overflow-hidden">
           <Image
             alt="Restaurant entrance looking through to the dining room"
             className="object-cover"
@@ -290,11 +368,13 @@ function Scenarios() {
             sizes="(max-width: 1024px) 100vw, 60vw"
             src="/images/seatd-entrance.webp"
           />
-          <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent_30%,#141411_100%)]" />
-          <div className="absolute inset-x-0 bottom-0 grid gap-5 p-6 text-bone md:p-8">
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent_30%,#1c1410_100%)]" />
+          <div className="absolute inset-x-0 bottom-0 grid gap-5 p-6 text-paper md:p-8">
             <div>
-              <h3 className="text-2xl font-semibold">A guest walks in</h3>
-              <p className="mt-2 max-w-[42ch] text-bone/75">
+              <h3 className="display text-2xl tracking-tight">
+                A guest walks in
+              </h3>
+              <p className="mt-2 max-w-[42ch] text-paper/75">
                 The entrance display shows where seating is available, including
                 patio and bar, without sending the host on a tour.
               </p>
@@ -303,14 +383,14 @@ function Scenarios() {
           </div>
         </article>
         <div className="grid gap-6">
-          <article className="rounded-[24px] border border-line bg-surface p-6 md:p-8">
-            <h3 className="text-2xl font-semibold">During service</h3>
+          <article className="border border-line bg-surface p-6 md:p-8">
+            <h3 className="display text-2xl tracking-tight">During service</h3>
             <p className="mt-2 max-w-[42ch] text-muted">
               The waiter sees which tables are occupied and where attention is
               needed, from a handheld live floor.
             </p>
           </article>
-          <article className="relative min-h-[240px] overflow-hidden rounded-[24px]">
+          <article className="relative min-h-[240px] overflow-hidden">
             <Image
               alt="Covered patio seating at a restaurant"
               className="object-cover"
@@ -318,10 +398,10 @@ function Scenarios() {
               sizes="(max-width: 1024px) 100vw, 40vw"
               src="/images/seatd-patio.webp"
             />
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent_20%,#141411_100%)]" />
-            <div className="absolute inset-x-0 bottom-0 p-6 text-bone">
-              <h3 className="text-2xl font-semibold">At the table</h3>
-              <p className="mt-2 max-w-[36ch] text-bone/75">
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent_20%,#1c1410_100%)]" />
+            <div className="absolute inset-x-0 bottom-0 p-6 text-paper">
+              <h3 className="display text-2xl tracking-tight">At the table</h3>
+              <p className="mt-2 max-w-[36ch] text-paper/75">
                 The guest scans the table QR, requests the bill, and staff see
                 Table 14 waiting.
               </p>
@@ -337,19 +417,20 @@ function HowItWorks() {
   return (
     <section className="section-anchor py-24 md:py-32" id="how-it-works">
       <div className="shell">
-        <Reveal>
-          <h2 className="max-w-[16ch] text-3xl leading-[1.12] font-semibold tracking-tight md:text-5xl">
-            Seatd works alongside the systems you already use.
-          </h2>
-          <p className="mt-5 max-w-[58ch] text-lg text-muted">
-            You do not replace the POS to see the floor. Map the room, give the
-            team access, put QR codes on tables, and run service from one view.
-          </p>
-        </Reveal>
+        <h2 className="display max-w-[16ch] text-3xl md:text-5xl">
+          Seatd works alongside the systems you already use
+          <span className="period">.</span>
+        </h2>
+        <p className="mt-5 max-w-[58ch] text-lg text-muted">
+          You do not replace the POS to see the floor. Map the room, give the
+          team access, put QR codes on tables, and run service from one view.
+        </p>
         <ol className="mt-14 grid gap-10 md:grid-cols-2 xl:grid-cols-4">
           {steps.map((step) => (
             <li key={step.title}>
-              <h3 className="text-xl font-semibold">{step.title}</h3>
+              <h3 className="font-sans text-xl font-semibold tracking-normal">
+                {step.title}
+              </h3>
               <p className="mt-2 max-w-[36ch] text-muted">{step.body}</p>
             </li>
           ))}
@@ -361,19 +442,23 @@ function HowItWorks() {
 
 function GuestAssist() {
   return (
-    <section className="section-anchor border-t border-line py-24 md:py-32">
+    <section
+      className="section-anchor border-t border-line py-24 md:py-32"
+      id="guest-assist"
+    >
       <div className="shell grid gap-12">
-        <Reveal>
-          <h2 className="max-w-[16ch] text-3xl leading-[1.12] font-semibold tracking-tight md:text-5xl">
-            No app. No account. Just scan and ask.
+        <div>
+          <h2 className="display max-w-[16ch] text-3xl md:text-5xl">
+            No app. No account. Just scan and ask
+            <span className="period">.</span>
           </h2>
           <p className="mt-5 max-w-[58ch] text-lg text-muted">
             Guests request help in seconds from the table QR. Staff see where
             attention is needed. Guests do not download an app, create an
-            account, enter an email, or join a loyalty programme just to ask for
-            assistance.
+            account, enter an email, or join a loyalty programme just to ask
+            for assistance.
           </p>
-        </Reveal>
+        </div>
         <GuestAssistStage />
       </div>
     </section>
@@ -382,21 +467,19 @@ function GuestAssist() {
 
 function LiveOps() {
   return (
-    <section
-      className="ink-stage section-anchor py-24 text-[var(--seatd-ink-stage-fg)] md:py-32"
-      style={{ background: "var(--seatd-ink-stage)" }}
-    >
+    <section className="desk-stage timber-field section-anchor py-24 text-paper md:py-32">
       <div className="shell grid gap-12 md:gap-16">
-        <Reveal>
-          <h2 className="max-w-[16ch] text-3xl leading-[1.12] font-semibold tracking-tight md:text-5xl">
-            Your floor should never be a guessing game.
+        <div>
+          <h2 className="display max-w-[16ch] text-3xl md:text-5xl">
+            Your floor should never be a guessing game
+            <span className="period">.</span>
           </h2>
-          <p className="mt-5 max-w-[58ch] text-lg text-[var(--seatd-ink-stage-muted)]">
+          <p className="mt-5 max-w-[58ch] text-lg text-paper/70">
             See table status across every area of the venue from one live
             operational view. Built for rooms that do not fit on a single sight
             line.
           </p>
-        </Reveal>
+        </div>
         <ZoneFloor />
       </div>
     </section>
@@ -407,9 +490,10 @@ function Outcomes() {
   return (
     <section className="section-anchor py-24 md:py-32">
       <div className="shell grid gap-16 lg:grid-cols-[0.8fr_1.2fr]">
-        <Reveal>
-          <h2 className="max-w-[14ch] text-3xl leading-[1.12] font-semibold tracking-tight md:text-5xl">
-            Why this is worth paying for every month.
+        <div>
+          <h2 className="display max-w-[14ch] text-3xl md:text-5xl">
+            Why this is worth paying for every month
+            <span className="period">.</span>
           </h2>
           <p className="mt-5 max-w-[46ch] text-lg text-muted">
             Less uncertainty, faster decisions, better service flow, a clearer
@@ -418,11 +502,13 @@ function Outcomes() {
           <div className="mt-8">
             <BookDemoButton source="after-outcomes" />
           </div>
-        </Reveal>
+        </div>
         <div className="grid gap-8">
           {outcomes.map((item) => (
             <article className="border-t border-line pt-6" key={item.title}>
-              <h3 className="text-2xl font-semibold">{item.title}</h3>
+              <h3 className="font-sans text-2xl font-semibold tracking-normal">
+                {item.title}
+              </h3>
               <p className="mt-2 max-w-[54ch] text-muted">{item.body}</p>
             </article>
           ))}
@@ -436,15 +522,14 @@ function Who() {
   return (
     <section className="section-anchor py-24 md:py-32" id="restaurants">
       <div className="shell">
-        <Reveal>
-          <h2 className="max-w-[14ch] text-3xl leading-[1.12] font-semibold tracking-tight md:text-5xl">
-            Built for floors that get busy.
-          </h2>
-          <p className="mt-5 max-w-[54ch] text-lg text-muted">
-            High-volume rooms, multiple service areas, and teams that move
-            between sections.
-          </p>
-        </Reveal>
+        <h2 className="display max-w-[14ch] text-3xl md:text-5xl">
+          Built for floors that get busy
+          <span className="period">.</span>
+        </h2>
+        <p className="mt-5 max-w-[54ch] text-lg text-muted">
+          High-volume rooms, multiple service areas, and teams that move
+          between sections.
+        </p>
         <div className="mt-12 grid gap-4 md:grid-cols-6">
           {venues.map((venue, index) => {
             const span =
@@ -454,23 +539,25 @@ function Who() {
                   ? "md:col-span-2"
                   : "md:col-span-3";
             return (
-            <article
-              className={`relative min-h-[280px] overflow-hidden rounded-[24px] ${span}`}
-              key={venue.title}
-            >
-              <Image
-                alt={venue.alt}
-                className="object-cover"
-                fill
-                sizes="(max-width: 768px) 100vw, 50vw"
-                src={venue.image}
-              />
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent_35%,#141411_100%)]" />
-              <div className="absolute inset-x-0 bottom-0 p-6 text-bone">
-                <h3 className="text-2xl font-semibold">{venue.title}</h3>
-                <p className="mt-2 max-w-[36ch] text-bone/75">{venue.body}</p>
-              </div>
-            </article>
+              <article
+                className={`relative min-h-[280px] overflow-hidden ${span}`}
+                key={venue.title}
+              >
+                <Image
+                  alt={venue.alt}
+                  className="object-cover"
+                  fill
+                  sizes="(max-width: 768px) 100vw, 50vw"
+                  src={venue.image}
+                />
+                <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent_35%,#1c1410_100%)]" />
+                <div className="absolute inset-x-0 bottom-0 p-6 text-paper">
+                  <h3 className="display text-2xl tracking-tight">
+                    {venue.title}
+                  </h3>
+                  <p className="mt-2 max-w-[36ch] text-paper/75">{venue.body}</p>
+                </div>
+              </article>
             );
           })}
         </div>
@@ -481,97 +568,102 @@ function Who() {
 
 function Beside() {
   return (
-    <section className="section-anchor border-t border-line py-24 md:py-32">
+    <section className="section-anchor border-t border-line py-24 md:py-32" id="beside">
       <div className="shell">
-        <Reveal>
-          <h2 className="max-w-[18ch] text-3xl leading-[1.12] font-semibold tracking-tight md:text-5xl">
-            Your POS runs the transaction. Seatd runs the floor.
-          </h2>
-          <p className="mt-5 max-w-[58ch] text-lg text-muted">
-            Seatd is complementary. It does not ask you to throw out reservations
-            or payments software.
-          </p>
-        </Reveal>
-        <div className="mt-12 grid gap-4 lg:grid-cols-[0.9fr_0.9fr_1.2fr]">
-          <CompareCard
-            title="POS"
-            body="Orders, bills, and payments."
-            points={["Transactions", "Kitchen tickets", "End-of-night reporting"]}
-          />
-          <CompareCard
-            title="Reservations"
-            body="Booking future tables."
-            points={["Tonight’s book", "Arrival lists", "Waitlist for later"]}
-          />
-          <CompareCard
-            featured
-            title="Seatd"
-            body="Live floor visibility, guest assistance, and floor operations."
-            points={[
-              "Live visual floor status",
-              "Guest table assistance",
-              "Public availability view",
-              "Multi-area awareness",
-              "No guest app required",
-            ]}
-          />
+        <h2 className="display max-w-[18ch] text-3xl md:text-5xl">
+          Your POS runs the transaction. Seatd runs the floor
+          <span className="period">.</span>
+        </h2>
+        <p className="mt-5 max-w-[58ch] text-lg text-muted">
+          Seatd is complementary. It does not ask you to throw out reservations
+          or payments software.
+        </p>
+        <div className="mt-12 overflow-x-auto">
+          <table className="compare-table min-w-[640px]">
+            <thead>
+              <tr>
+                <th scope="col">Capability</th>
+                <th scope="col">Manual floor</th>
+                <th scope="col">POS only</th>
+                <th className="compare-seatd" scope="col">
+                  Seatd
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">Live visual floor status</th>
+                <td>Limited</td>
+                <td>Sometimes</td>
+                <td className="compare-seatd">Yes</td>
+              </tr>
+              <tr>
+                <th scope="row">Guest table assistance</th>
+                <td>No</td>
+                <td>Usually no</td>
+                <td className="compare-seatd">Yes</td>
+              </tr>
+              <tr>
+                <th scope="row">Public availability view</th>
+                <td>No</td>
+                <td>No</td>
+                <td className="compare-seatd">Yes</td>
+              </tr>
+              <tr>
+                <th scope="row">Multi-area awareness</th>
+                <td>Manual</td>
+                <td>Varies</td>
+                <td className="compare-seatd">Yes</td>
+              </tr>
+              <tr>
+                <th scope="row">No guest app required</th>
+                <td>n/a</td>
+                <td>n/a</td>
+                <td className="compare-seatd">Yes</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </section>
   );
 }
 
-function CompareCard({
-  title,
-  body,
-  points,
-  featured = false,
-}: Readonly<{
-  title: string;
-  body: string;
-  points: string[];
-  featured?: boolean;
-}>) {
-  return (
-    <article
-      className={`rounded-[24px] p-7 ${
-        featured
-          ? "bg-ink text-bone"
-          : "border border-line bg-surface"
-      }`}
-    >
-      <h3 className="text-2xl font-semibold" translate={title === "Seatd" ? "no" : undefined}>
-        {title}
-      </h3>
-      <p className={`mt-2 ${featured ? "text-bone/70" : "text-muted"}`}>{body}</p>
-      <ul className="mt-6 grid gap-3">
-        {points.map((point) => (
-          <li className="flex items-start gap-2" key={point}>
-            {featured ? (
-              <CheckIcon aria-hidden="true" className="mt-0.5" size={18} weight="bold" />
-            ) : null}
-            <span>{point}</span>
-          </li>
-        ))}
-      </ul>
-    </article>
-  );
-}
-
 function Pricing() {
   return (
     <section className="section-anchor py-24 md:py-32" id="pricing">
-      <div className="shell max-w-3xl">
-        <Reveal>
-          <h2 className="text-3xl leading-[1.12] font-semibold tracking-tight md:text-5xl">
-            Priced per location, sized to your floor.
-          </h2>
-          <p className="mt-5 max-w-[58ch] text-lg text-muted">
-            Seatd is a monthly product for a venue, not a per-seat gadget. We’ll
-            confirm numbers on the demo once we have seen how your floor is laid
-            out.
-          </p>
-        </Reveal>
+      <div className="shell">
+        <h2 className="display max-w-[16ch] text-3xl md:text-5xl">
+          Priced per location, sized to your floor
+          <span className="period">.</span>
+        </h2>
+        <p className="mt-5 max-w-[58ch] text-lg text-muted">
+          Seatd is a monthly product for a venue, not a per-seat gadget.
+          Confirm exact pricing on the demo once we have seen how your floor
+          is laid out.
+        </p>
+        <div className="mt-12 grid gap-4 lg:grid-cols-3">
+          {pricingTiers.map((tier) => (
+            <article
+              className={`pricing-tier ${tier.featured ? "is-featured" : ""}`}
+              key={tier.title}
+            >
+              <h3 className="font-sans text-xl font-semibold">{tier.title}</h3>
+              <p className="mt-1 text-sm text-muted">{tier.scope}</p>
+              <ul className="mt-6 grid gap-3">
+                {tier.includes.map((item) => (
+                  <li className="pricing-include" key={item}>
+                    <CheckIcon aria-hidden="true" size={16} weight="bold" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+              <p className="pricing-note mt-8 text-sm font-semibold">
+                Confirm on demo
+              </p>
+            </article>
+          ))}
+        </div>
       </div>
     </section>
   );
@@ -581,8 +673,9 @@ function Faq() {
   return (
     <section className="section-anchor border-t border-line py-24 md:py-32" id="faq">
       <div className="shell grid gap-10 lg:grid-cols-[0.8fr_1.2fr]">
-        <h2 className="text-3xl leading-[1.12] font-semibold tracking-tight md:text-5xl">
-          Questions owners actually ask.
+        <h2 className="display text-3xl md:text-5xl">
+          Questions owners actually ask
+          <span className="period">.</span>
         </h2>
         <FaqList />
       </div>
@@ -595,8 +688,9 @@ function FinalCta() {
     <section className="section-anchor pb-24 md:pb-32" id="demo">
       <div className="shell grid items-start gap-12 lg:grid-cols-[1fr_1fr]">
         <div>
-          <h2 className="max-w-[16ch] text-3xl leading-[1.12] font-semibold tracking-tight md:text-5xl">
-            See what Seatd would look like in your restaurant.
+          <h2 className="display max-w-[16ch] text-3xl md:text-5xl">
+            See what Seatd would look like in your restaurant
+            <span className="period">.</span>
           </h2>
           <p className="mt-5 max-w-[50ch] text-lg text-muted">
             Tell us about your venue. We’ll show how Seatd fits your floor, then
@@ -609,7 +703,9 @@ function FinalCta() {
             <li>4. Ask about setup and rollout</li>
           </ol>
         </div>
-        <DemoForm />
+        <Clipboard sheetClassName="chart-sheet--form" stamp="Demo">
+          <DemoForm />
+        </Clipboard>
       </div>
     </section>
   );

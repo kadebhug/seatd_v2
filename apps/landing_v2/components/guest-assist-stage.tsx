@@ -56,10 +56,7 @@ function PhoneMock({ pending }: Readonly<{ pending: boolean }>) {
         <div className="phone-screen">
           <div className="mb-6 flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-[0.7rem] font-semibold tracking-[0.14em] text-[color-mix(in_srgb,#141411_55%,transparent)] uppercase">
-                Guest assist
-              </p>
-              <h3 className="mt-1 text-[1.35rem] font-semibold tracking-tight">
+              <h3 className="text-[1.35rem] font-semibold tracking-tight">
                 <span translate="no">{DEMO_VENUE}</span>
               </h3>
             </div>
@@ -85,7 +82,7 @@ function PhoneMock({ pending }: Readonly<{ pending: boolean }>) {
                   <span
                     className={`flex min-h-12 items-center gap-3 rounded-[8px] px-4 py-3 text-[0.95rem] font-semibold ${
                       index === 0
-                        ? "bg-[#f05a3c] text-white"
+                        ? "bg-signal text-white"
                         : "border border-[color-mix(in_srgb,#141411_14%,transparent)] bg-white"
                     }`}
                     key={action.key}

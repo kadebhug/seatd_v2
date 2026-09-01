@@ -1,7 +1,3 @@
-"use client";
-
-import { ArrowUpRightIcon } from "@phosphor-icons/react";
-
 type CtaProps = Readonly<{
   href?: string;
   source: string;
@@ -21,9 +17,6 @@ export function BookDemoButton({
       href={href}
     >
       Book a Demo
-      <span className="cta-icon">
-        <ArrowUpRightIcon aria-hidden="true" size={16} weight="bold" />
-      </span>
     </a>
   );
 }
