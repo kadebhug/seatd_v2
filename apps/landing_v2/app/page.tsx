@@ -11,7 +11,6 @@ import { LiveFloor } from "../components/live-floor";
 import { SalesWalkthrough } from "../components/sales-walkthrough";
 import { SiteFooter } from "../components/site-footer";
 import { SiteHeader } from "../components/site-header";
-import { StickyDemoBar } from "../components/sticky-demo-bar";
 import { ZoneFloor } from "../components/zone-floor";
 import { DEMO_VENUE, MAIN_FIXTURES, MAIN_FLOOR } from "../lib/demo-floor";
 
@@ -171,7 +170,6 @@ export default function HomePage() {
   return (
     <>
       <SiteHeader />
-      <StickyDemoBar />
       <main id="main">
         <Hero />
         <Trust />
@@ -221,10 +219,10 @@ function Hero() {
 
 function Trust() {
   return (
-    <section className="border-y border-line py-6">
-      <ul className="shell grid gap-x-8 gap-y-3 sm:grid-cols-2 lg:flex lg:flex-wrap">
+    <section className="border-y border-line py-8">
+      <ul className="shell flex flex-wrap items-center justify-center gap-x-10 gap-y-4">
         {trust.map((item) => (
-          <li className="trust-item max-w-[28ch]" key={item}>
+          <li className="trust-item" key={item}>
             <CheckIcon aria-hidden="true" size={18} weight="bold" />
             {item}
           </li>
@@ -338,6 +336,9 @@ function Product() {
             occupied, or need attention across every service area. Less walking
             around just to find out what is happening.
           </p>
+          <div className="mt-8">
+            <BookDemoButton source="after-product" />
+          </div>
         </div>
         <Clipboard className="mx-auto w-full max-w-5xl" stamp="Live floor">
           <LiveFloor
@@ -348,9 +349,6 @@ function Product() {
             venue={DEMO_VENUE}
           />
         </Clipboard>
-        <div>
-          <BookDemoButton source="after-product" />
-        </div>
       </div>
     </section>
   );

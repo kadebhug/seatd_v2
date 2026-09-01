@@ -706,18 +706,18 @@
 }
 
 .trust-item {
-  align-items: flex-start;
+  align-items: center;
   display: flex;
   font-size: 0.95rem;
   font-weight: 600;
   gap: 0.55rem;
   line-height: 1.35;
+  white-space: nowrap;
 }
 
 .trust-item svg {
   color: var(--color-available);
   flex-shrink: 0;
-  margin-top: 0.15rem;
 }
 
 .call-sheet {
@@ -825,26 +825,6 @@
 .compare-table .compare-seatd {
   background: color-mix(in srgb, var(--color-signal) 7%, transparent);
   font-weight: 700;
-}
-
-.sticky-demo-bar {
-  background: var(--seatd-canvas);
-  border-bottom: 1px solid var(--seatd-line);
-  inset: 3.5rem 0 auto;
-  opacity: 0;
-  pointer-events: none;
-  position: fixed;
-  transform: translateY(-100%);
-  transition:
-    opacity 220ms var(--ease-seatd),
-    transform 220ms var(--ease-seatd);
-  z-index: 19;
-}
-
-.sticky-demo-bar.is-visible {
-  opacity: 1;
-  pointer-events: auto;
-  transform: translateY(0);
 }
 
 @media (max-width: 767px) {
