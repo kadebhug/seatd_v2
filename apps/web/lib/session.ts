@@ -1,4 +1,11 @@
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import {
+  type APIWebSession,
+  sessionCookieName,
+  unsignValue,
+  validateAPISession,
+} from "./auth";
 
 export type SeatdRole =
   | "platform_admin"
@@ -14,6 +21,7 @@ export interface SeatdSession {
   organisationId: string;
   locationId: string;
   roles: SeatdRole[];
+  sessionSecret?: string;
 }
 
 const demoSession: SeatdSession = {
@@ -26,12 +34,22 @@ const demoSession: SeatdSession = {
 
 export async function getSession(): Promise<SeatdSession> {
   const jar = await cookies();
-  const encoded = jar.get("seatd_web_session")?.value;
-  if (encoded) {
-    return JSON.parse(Buffer.from(encoded, "base64url").toString("utf8"));
+  const env = process.env.SEATD_ENV ?? "local";
+  let secret: string | null = null;
+  try {
+    secret = unsignValue(jar.get(sessionCookieName)?.value);
+  } catch (error) {
+    if (env !== "local" && env !== "test") {
+      throw error;
+    }
+  }
+  if (secret) {
+    const apiSession = await validateAPISession(secret);
+    if (apiSession) {
+      return seatdSessionFromAPI(apiSession, secret);
+    }
   }
 
-  const env = process.env.SEATD_ENV ?? "local";
   if (
     (env === "local" || env === "test") &&
     process.env.SEATD_WEB_DEV_SESSION !== "disabled"
@@ -44,7 +62,7 @@ export async function getSession(): Promise<SeatdSession> {
       "OIDC configuration is required outside local/test development",
     );
   }
-  throw new Error("OIDC callback flow is not configured for this environment");
+  redirect("/api/auth/login?returnTo=/owner");
 }
 
 export function canAccessOwner(session: SeatdSession): boolean {
@@ -57,4 +75,32 @@ export function canAccessPlatform(session: SeatdSession): boolean {
   return session.roles.some(
     (role) => role === "platform_admin" || role === "support",
   );
+}
+
+function seatdSessionFromAPI(
+  apiSession: APIWebSession,
+  secret: string,
+): SeatdSession {
+  const location =
+    apiSession.locations.find((item) => item.status === "active") ??
+    apiSession.locations[0];
+  const organisationId =
+    location?.organisationId ?? apiSession.memberships[0]?.organisationId ?? "";
+  const roles = apiSession.memberships
+    .filter((membership) => membership.organisationId === organisationId)
+    .filter(
+      (membership) =>
+        !location ||
+        !membership.locationId ||
+        membership.locationId === location.id,
+    )
+    .map((membership) => membership.role as SeatdRole);
+  return {
+    actorRef: apiSession.actorRef,
+    displayName: apiSession.displayName,
+    organisationId,
+    locationId: location?.id ?? "",
+    roles: Array.from(new Set(roles)),
+    sessionSecret: secret,
+  };
 }

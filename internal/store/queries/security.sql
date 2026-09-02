@@ -29,6 +29,56 @@ WHERE external_identities.issuer = $1
   AND external_identities.subject = $2
   AND user_profiles.status = 'active';
 
+-- name: CreateWebSession :one
+INSERT INTO web_sessions (
+    user_profile_id,
+    lookup_prefix,
+    session_hash,
+    expires_at,
+    user_agent,
+    ip_address,
+    rotated_from_session_id
+)
+VALUES ($1, $2, $3, $4, $5, sqlc.narg(ip_address)::inet, sqlc.narg(rotated_from_session_id)::uuid)
+RETURNING *;
+
+-- name: GetWebSessionByPrefix :one
+SELECT sqlc.embed(web_sessions), sqlc.embed(user_profiles)
+FROM web_sessions
+JOIN user_profiles ON user_profiles.id = web_sessions.user_profile_id
+WHERE web_sessions.lookup_prefix = $1
+  AND web_sessions.revoked_at IS NULL
+  AND web_sessions.expires_at > now()
+  AND user_profiles.status = 'active';
+
+-- name: TouchWebSession :exec
+UPDATE web_sessions
+SET last_used_at = now(),
+    updated_at = now()
+WHERE id = $1
+  AND revoked_at IS NULL
+  AND expires_at > now();
+
+-- name: RevokeWebSession :exec
+UPDATE web_sessions
+SET revoked_at = COALESCE(revoked_at, now()),
+    updated_at = now()
+WHERE id = $1;
+
+-- name: ListUserOrganisationMemberships :many
+SELECT *
+FROM organisation_memberships
+WHERE user_profile_id = $1
+  AND disabled_at IS NULL
+ORDER BY role, member_ref;
+
+-- name: ListUserLocationMemberships :many
+SELECT *
+FROM location_memberships
+WHERE user_profile_id = $1
+  AND disabled_at IS NULL
+ORDER BY role, member_ref;
+
 -- name: GetRolePermissions :many
 SELECT permission_name
 FROM role_permissions

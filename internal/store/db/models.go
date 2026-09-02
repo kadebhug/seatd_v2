@@ -5,6 +5,8 @@
 package db
 
 import (
+	"net/netip"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -594,6 +596,22 @@ type UserProfile struct {
 	Status      string             `json:"status"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type WebSession struct {
+	ID                   uuid.UUID          `json:"id"`
+	UserProfileID        uuid.UUID          `json:"user_profile_id"`
+	LookupPrefix         string             `json:"lookup_prefix"`
+	SessionHash          []byte             `json:"session_hash"`
+	IssuedAt             pgtype.Timestamptz `json:"issued_at"`
+	LastUsedAt           pgtype.Timestamptz `json:"last_used_at"`
+	ExpiresAt            pgtype.Timestamptz `json:"expires_at"`
+	RevokedAt            pgtype.Timestamptz `json:"revoked_at"`
+	RotatedFromSessionID uuid.NullUUID      `json:"rotated_from_session_id"`
+	UserAgent            pgtype.Text        `json:"user_agent"`
+	IpAddress            *netip.Addr        `json:"ip_address"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
 }
 
 type Zone struct {

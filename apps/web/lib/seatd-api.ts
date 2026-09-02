@@ -19,8 +19,19 @@ export async function seatdFetch<T>(
   const headers = new Headers(init.headers);
   headers.set("Accept", "application/json");
   headers.set("X-Seatd-Organisation-ID", session.organisationId);
-  headers.set("X-Seatd-Location-ID", session.locationId);
-  headers.set("X-Seatd-Actor-Ref", session.actorRef);
+  if (session.locationId) {
+    headers.set("X-Seatd-Location-ID", session.locationId);
+  }
+  if (session.sessionSecret) {
+    headers.set("Authorization", `Bearer ${session.sessionSecret}`);
+  } else if (
+    (process.env.SEATD_ENV ?? "local") === "local" ||
+    process.env.SEATD_ENV === "test"
+  ) {
+    headers.set("X-Seatd-Actor-Ref", session.actorRef);
+  } else {
+    throw new Error("Seatd API session secret is required outside local/test");
+  }
   if (init.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }

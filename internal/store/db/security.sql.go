@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"net/netip"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -399,6 +400,59 @@ func (q *Queries) CreateUserProfile(ctx context.Context, arg CreateUserProfilePa
 	return i, err
 }
 
+const createWebSession = `-- name: CreateWebSession :one
+INSERT INTO web_sessions (
+    user_profile_id,
+    lookup_prefix,
+    session_hash,
+    expires_at,
+    user_agent,
+    ip_address,
+    rotated_from_session_id
+)
+VALUES ($1, $2, $3, $4, $5, $6::inet, $7::uuid)
+RETURNING id, user_profile_id, lookup_prefix, session_hash, issued_at, last_used_at, expires_at, revoked_at, rotated_from_session_id, user_agent, ip_address, created_at, updated_at
+`
+
+type CreateWebSessionParams struct {
+	UserProfileID        uuid.UUID          `json:"user_profile_id"`
+	LookupPrefix         string             `json:"lookup_prefix"`
+	SessionHash          []byte             `json:"session_hash"`
+	ExpiresAt            pgtype.Timestamptz `json:"expires_at"`
+	UserAgent            pgtype.Text        `json:"user_agent"`
+	IpAddress            *netip.Addr        `json:"ip_address"`
+	RotatedFromSessionID uuid.NullUUID      `json:"rotated_from_session_id"`
+}
+
+func (q *Queries) CreateWebSession(ctx context.Context, arg CreateWebSessionParams) (WebSession, error) {
+	row := q.db.QueryRow(ctx, createWebSession,
+		arg.UserProfileID,
+		arg.LookupPrefix,
+		arg.SessionHash,
+		arg.ExpiresAt,
+		arg.UserAgent,
+		arg.IpAddress,
+		arg.RotatedFromSessionID,
+	)
+	var i WebSession
+	err := row.Scan(
+		&i.ID,
+		&i.UserProfileID,
+		&i.LookupPrefix,
+		&i.SessionHash,
+		&i.IssuedAt,
+		&i.LastUsedAt,
+		&i.ExpiresAt,
+		&i.RevokedAt,
+		&i.RotatedFromSessionID,
+		&i.UserAgent,
+		&i.IpAddress,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getActiveTableQRCapabilityByHash = `-- name: GetActiveTableQRCapabilityByHash :one
 SELECT table_qr_capabilities.id, table_qr_capabilities.organisation_id, table_qr_capabilities.location_id, table_qr_capabilities.table_id, table_qr_capabilities.token, table_qr_capabilities.label, table_qr_capabilities.issued_at, table_qr_capabilities.expires_at, table_qr_capabilities.revoked_at, table_qr_capabilities.version, table_qr_capabilities.created_at, table_qr_capabilities.updated_at, table_qr_capabilities.token_lookup_prefix, table_qr_capabilities.token_hash, table_qr_capabilities.last_used_at
 FROM table_qr_capabilities
@@ -631,6 +685,48 @@ func (q *Queries) GetUserByExternalIdentity(ctx context.Context, arg GetUserByEx
 		&i.ExternalIdentity.Email,
 		&i.ExternalIdentity.CreatedAt,
 		&i.ExternalIdentity.UpdatedAt,
+	)
+	return i, err
+}
+
+const getWebSessionByPrefix = `-- name: GetWebSessionByPrefix :one
+SELECT web_sessions.id, web_sessions.user_profile_id, web_sessions.lookup_prefix, web_sessions.session_hash, web_sessions.issued_at, web_sessions.last_used_at, web_sessions.expires_at, web_sessions.revoked_at, web_sessions.rotated_from_session_id, web_sessions.user_agent, web_sessions.ip_address, web_sessions.created_at, web_sessions.updated_at, user_profiles.id, user_profiles.display_name, user_profiles.email, user_profiles.status, user_profiles.created_at, user_profiles.updated_at
+FROM web_sessions
+JOIN user_profiles ON user_profiles.id = web_sessions.user_profile_id
+WHERE web_sessions.lookup_prefix = $1
+  AND web_sessions.revoked_at IS NULL
+  AND web_sessions.expires_at > now()
+  AND user_profiles.status = 'active'
+`
+
+type GetWebSessionByPrefixRow struct {
+	WebSession  WebSession  `json:"web_session"`
+	UserProfile UserProfile `json:"user_profile"`
+}
+
+func (q *Queries) GetWebSessionByPrefix(ctx context.Context, lookupPrefix string) (GetWebSessionByPrefixRow, error) {
+	row := q.db.QueryRow(ctx, getWebSessionByPrefix, lookupPrefix)
+	var i GetWebSessionByPrefixRow
+	err := row.Scan(
+		&i.WebSession.ID,
+		&i.WebSession.UserProfileID,
+		&i.WebSession.LookupPrefix,
+		&i.WebSession.SessionHash,
+		&i.WebSession.IssuedAt,
+		&i.WebSession.LastUsedAt,
+		&i.WebSession.ExpiresAt,
+		&i.WebSession.RevokedAt,
+		&i.WebSession.RotatedFromSessionID,
+		&i.WebSession.UserAgent,
+		&i.WebSession.IpAddress,
+		&i.WebSession.CreatedAt,
+		&i.WebSession.UpdatedAt,
+		&i.UserProfile.ID,
+		&i.UserProfile.DisplayName,
+		&i.UserProfile.Email,
+		&i.UserProfile.Status,
+		&i.UserProfile.CreatedAt,
+		&i.UserProfile.UpdatedAt,
 	)
 	return i, err
 }
@@ -942,6 +1038,81 @@ func (q *Queries) ListTableQRCapabilitiesByTable(ctx context.Context, arg ListTa
 			&i.TokenLookupPrefix,
 			&i.TokenHash,
 			&i.LastUsedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUserLocationMemberships = `-- name: ListUserLocationMemberships :many
+SELECT id, organisation_id, location_id, member_ref, role, created_at, updated_at, user_profile_id, disabled_at
+FROM location_memberships
+WHERE user_profile_id = $1
+  AND disabled_at IS NULL
+ORDER BY role, member_ref
+`
+
+func (q *Queries) ListUserLocationMemberships(ctx context.Context, userProfileID uuid.NullUUID) ([]LocationMembership, error) {
+	rows, err := q.db.Query(ctx, listUserLocationMemberships, userProfileID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []LocationMembership{}
+	for rows.Next() {
+		var i LocationMembership
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganisationID,
+			&i.LocationID,
+			&i.MemberRef,
+			&i.Role,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.UserProfileID,
+			&i.DisabledAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUserOrganisationMemberships = `-- name: ListUserOrganisationMemberships :many
+SELECT id, organisation_id, member_ref, role, created_at, updated_at, user_profile_id, disabled_at
+FROM organisation_memberships
+WHERE user_profile_id = $1
+  AND disabled_at IS NULL
+ORDER BY role, member_ref
+`
+
+func (q *Queries) ListUserOrganisationMemberships(ctx context.Context, userProfileID uuid.NullUUID) ([]OrganisationMembership, error) {
+	rows, err := q.db.Query(ctx, listUserOrganisationMemberships, userProfileID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []OrganisationMembership{}
+	for rows.Next() {
+		var i OrganisationMembership
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganisationID,
+			&i.MemberRef,
+			&i.Role,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.UserProfileID,
+			&i.DisabledAt,
 		); err != nil {
 			return nil, err
 		}
@@ -1309,6 +1480,18 @@ func (q *Queries) RevokeTableQRCapability(ctx context.Context, arg RevokeTableQR
 	return i, err
 }
 
+const revokeWebSession = `-- name: RevokeWebSession :exec
+UPDATE web_sessions
+SET revoked_at = COALESCE(revoked_at, now()),
+    updated_at = now()
+WHERE id = $1
+`
+
+func (q *Queries) RevokeWebSession(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, revokeWebSession, id)
+	return err
+}
+
 const rotateTableQRCapability = `-- name: RotateTableQRCapability :one
 UPDATE table_qr_capabilities
 SET revoked_at = COALESCE(revoked_at, now()),
@@ -1402,6 +1585,20 @@ WHERE id = $1
 
 func (q *Queries) TouchTableQRCapability(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.Exec(ctx, touchTableQRCapability, id)
+	return err
+}
+
+const touchWebSession = `-- name: TouchWebSession :exec
+UPDATE web_sessions
+SET last_used_at = now(),
+    updated_at = now()
+WHERE id = $1
+  AND revoked_at IS NULL
+  AND expires_at > now()
+`
+
+func (q *Queries) TouchWebSession(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, touchWebSession, id)
 	return err
 }
 

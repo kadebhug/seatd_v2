@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/netip"
 	"strings"
 	"time"
 
@@ -99,6 +100,261 @@ func (s *Service) CreateUserProfile(ctx context.Context, arg UserProfileParams) 
 			return fmt.Errorf("linking external identity: %w", err)
 		}
 		result = UserProfileResult{User: user, External: external}
+		return nil
+	})
+	return result, err
+}
+
+type Membership struct {
+	OrganisationID uuid.UUID
+	LocationID     uuid.UUID
+	MemberRef      string
+	Role           string
+}
+
+type WebSession struct {
+	Session              db.WebSession
+	User                 db.UserProfile
+	Secret               string
+	Memberships          []Membership
+	RotatedFromSessionID uuid.NullUUID
+}
+
+type ResolveExternalIdentityParams struct {
+	DisplayName string
+	Email       string
+	External    ExternalIdentity
+}
+
+func (s *Service) ResolveExternalIdentity(ctx context.Context, arg ResolveExternalIdentityParams) (UserProfileResult, error) {
+	arg.DisplayName = strings.TrimSpace(arg.DisplayName)
+	arg.Email = strings.TrimSpace(arg.Email)
+	arg.External.Issuer = strings.TrimSpace(arg.External.Issuer)
+	arg.External.Subject = strings.TrimSpace(arg.External.Subject)
+	arg.External.Email = strings.TrimSpace(arg.External.Email)
+	if arg.External.Email == "" {
+		arg.External.Email = arg.Email
+	}
+	if arg.DisplayName == "" {
+		arg.DisplayName = arg.Email
+	}
+	if arg.DisplayName == "" || arg.External.Issuer == "" || arg.External.Subject == "" {
+		return UserProfileResult{}, ErrValidation
+	}
+
+	var result UserProfileResult
+	err := s.inAdminTx(ctx, func(q *db.Queries) error {
+		row, err := q.GetUserByExternalIdentity(ctx, db.GetUserByExternalIdentityParams{
+			Issuer:  arg.External.Issuer,
+			Subject: arg.External.Subject,
+		})
+		if err == nil {
+			result = UserProfileResult{User: row.UserProfile, External: row.ExternalIdentity}
+			return nil
+		}
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("getting external identity: %w", err)
+		}
+
+		created, err := q.CreateUserProfile(ctx, db.CreateUserProfileParams{
+			DisplayName: arg.DisplayName,
+			Email:       nullableText(arg.Email),
+		})
+		if err != nil {
+			return fmt.Errorf("creating user profile: %w", err)
+		}
+		external, err := q.LinkExternalIdentity(ctx, db.LinkExternalIdentityParams{
+			UserProfileID: created.ID,
+			Issuer:        arg.External.Issuer,
+			Subject:       arg.External.Subject,
+			Email:         nullableText(arg.External.Email),
+		})
+		if err != nil {
+			return fmt.Errorf("linking external identity: %w", err)
+		}
+		result = UserProfileResult{User: created, External: external}
+		return nil
+	})
+	return result, err
+}
+
+type CreateWebSessionParams struct {
+	UserProfileID uuid.UUID
+	TTL           time.Duration
+	UserAgent     string
+	IPAddress     string
+	RotatedFrom   uuid.UUID
+}
+
+func (s *Service) CreateWebSession(ctx context.Context, arg CreateWebSessionParams) (WebSession, error) {
+	if arg.UserProfileID == uuid.Nil {
+		return WebSession{}, ErrValidation
+	}
+	if arg.TTL <= 0 {
+		arg.TTL = 8 * time.Hour
+	}
+	if arg.TTL < time.Minute || arg.TTL > 24*time.Hour {
+		return WebSession{}, ErrValidation
+	}
+	secret, err := GenerateOpaqueSecret()
+	if err != nil {
+		return WebSession{}, fmt.Errorf("generating web session: %w", err)
+	}
+	prefix, err := LookupPrefix(secret)
+	if err != nil {
+		return WebSession{}, err
+	}
+	hash, err := HashSecret(secret)
+	if err != nil {
+		return WebSession{}, err
+	}
+	var ip *netip.Addr
+	if strings.TrimSpace(arg.IPAddress) != "" {
+		addr, err := netip.ParseAddr(strings.TrimSpace(arg.IPAddress))
+		if err == nil {
+			ip = &addr
+		}
+	}
+
+	var session db.WebSession
+	err = s.inAdminTx(ctx, func(q *db.Queries) error {
+		var err error
+		session, err = q.CreateWebSession(ctx, db.CreateWebSessionParams{
+			UserProfileID:        arg.UserProfileID,
+			LookupPrefix:         prefix,
+			SessionHash:          hash,
+			ExpiresAt:            pgtype.Timestamptz{Time: time.Now().Add(arg.TTL), Valid: true},
+			UserAgent:            nullableText(strings.TrimSpace(arg.UserAgent)),
+			IpAddress:            ip,
+			RotatedFromSessionID: nullableUUID(arg.RotatedFrom),
+		})
+		if err != nil {
+			return fmt.Errorf("creating web session: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return WebSession{}, err
+	}
+	return s.hydrateWebSession(ctx, session, secret)
+}
+
+func (s *Service) ValidateWebSession(ctx context.Context, secret string) (WebSession, error) {
+	prefix, err := LookupPrefix(secret)
+	if err != nil {
+		return WebSession{}, ErrUnauthorized
+	}
+
+	var row db.GetWebSessionByPrefixRow
+	err = s.inAdminTx(ctx, func(q *db.Queries) error {
+		var err error
+		row, err = q.GetWebSessionByPrefix(ctx, prefix)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrUnauthorized
+			}
+			return fmt.Errorf("getting web session: %w", err)
+		}
+		ok, err := SecretMatches(secret, row.WebSession.SessionHash)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return ErrUnauthorized
+		}
+		if err := q.TouchWebSession(ctx, row.WebSession.ID); err != nil {
+			return fmt.Errorf("touching web session: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return WebSession{}, err
+	}
+
+	session, err := s.hydrateWebSession(ctx, row.WebSession, secret)
+	if err != nil {
+		return WebSession{}, err
+	}
+	session.User = row.UserProfile
+	return session, nil
+}
+
+func (s *Service) RotateWebSession(ctx context.Context, secret string, ttl time.Duration, userAgent, ipAddress string) (WebSession, error) {
+	current, err := s.ValidateWebSession(ctx, secret)
+	if err != nil {
+		return WebSession{}, err
+	}
+	next, err := s.CreateWebSession(ctx, CreateWebSessionParams{
+		UserProfileID: current.User.ID,
+		TTL:           ttl,
+		UserAgent:     userAgent,
+		IPAddress:     ipAddress,
+		RotatedFrom:   current.Session.ID,
+	})
+	if err != nil {
+		return WebSession{}, err
+	}
+	next.User = current.User
+	if err := s.RevokeWebSession(ctx, secret); err != nil {
+		return WebSession{}, err
+	}
+	return next, nil
+}
+
+func (s *Service) RevokeWebSession(ctx context.Context, secret string) error {
+	prefix, err := LookupPrefix(secret)
+	if err != nil {
+		return ErrUnauthorized
+	}
+	return s.inAdminTx(ctx, func(q *db.Queries) error {
+		row, err := q.GetWebSessionByPrefix(ctx, prefix)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return nil
+			}
+			return fmt.Errorf("getting web session: %w", err)
+		}
+		ok, err := SecretMatches(secret, row.WebSession.SessionHash)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return ErrUnauthorized
+		}
+		if err := q.RevokeWebSession(ctx, row.WebSession.ID); err != nil {
+			return fmt.Errorf("revoking web session: %w", err)
+		}
+		return nil
+	})
+}
+
+func (s *Service) hydrateWebSession(ctx context.Context, session db.WebSession, secret string) (WebSession, error) {
+	result := WebSession{Session: session, User: db.UserProfile{ID: session.UserProfileID}, Secret: secret}
+	err := s.inAdminTx(ctx, func(q *db.Queries) error {
+		orgs, err := q.ListUserOrganisationMemberships(ctx, nullableUUID(session.UserProfileID))
+		if err != nil {
+			return fmt.Errorf("listing organisation memberships: %w", err)
+		}
+		locations, err := q.ListUserLocationMemberships(ctx, nullableUUID(session.UserProfileID))
+		if err != nil {
+			return fmt.Errorf("listing location memberships: %w", err)
+		}
+		result.Memberships = make([]Membership, 0, len(orgs)+len(locations))
+		for _, membership := range orgs {
+			result.Memberships = append(result.Memberships, Membership{
+				OrganisationID: membership.OrganisationID,
+				MemberRef:      membership.MemberRef,
+				Role:           membership.Role,
+			})
+		}
+		for _, membership := range locations {
+			result.Memberships = append(result.Memberships, Membership{
+				OrganisationID: membership.OrganisationID,
+				LocationID:     membership.LocationID,
+				MemberRef:      membership.MemberRef,
+				Role:           membership.Role,
+			})
+		}
 		return nil
 	})
 	return result, err

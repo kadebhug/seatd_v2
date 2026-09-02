@@ -10,6 +10,7 @@ func TestLoadConfig(t *testing.T) {
 	t.Setenv("SEATD_LOG_LEVEL", "debug")
 	t.Setenv("SEATD_API_PORT", "19080")
 	t.Setenv("SEATD_SHUTDOWN_TIMEOUT", "2s")
+	t.Setenv("SEATD_TRUSTED_IDENTITY_HEADERS", "true")
 
 	cfg, err := LoadConfig("api", 8080, BuildInfo{Version: "v1.2.3"})
 	if err != nil {
@@ -25,10 +26,22 @@ func TestLoadConfig(t *testing.T) {
 	if cfg.LogLevel != slog.LevelDebug {
 		t.Fatalf("LogLevel = %v, want %v", cfg.LogLevel, slog.LevelDebug)
 	}
+	if !cfg.TrustedIdentityHeaders {
+		t.Fatal("TrustedIdentityHeaders = false, want true")
+	}
 }
 
 func TestLoadConfigRejectsInvalidEnvironment(t *testing.T) {
 	t.Setenv("SEATD_ENV", "qa")
+
+	_, err := LoadConfig("api", 8080, BuildInfo{})
+	if err == nil {
+		t.Fatal("LoadConfig() error = nil, want error")
+	}
+}
+
+func TestLoadConfigRejectsInvalidTrustedIdentityHeaders(t *testing.T) {
+	t.Setenv("SEATD_TRUSTED_IDENTITY_HEADERS", "maybe")
 
 	_, err := LoadConfig("api", 8080, BuildInfo{})
 	if err == nil {

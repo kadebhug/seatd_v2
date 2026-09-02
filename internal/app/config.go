@@ -18,15 +18,17 @@ const (
 )
 
 type Config struct {
-	Name            string
-	Environment     string
-	Address         string
-	DatabaseURL     string
-	GuestWebOrigin  string
-	GuestAPIBaseURL string
-	LogLevel        slog.Level
-	ShutdownTimeout time.Duration
-	Version         BuildInfo
+	Name                   string
+	Environment            string
+	Address                string
+	DatabaseURL            string
+	GuestWebOrigin         string
+	GuestAPIBaseURL        string
+	InternalAPISecret      string
+	TrustedIdentityHeaders bool
+	LogLevel               slog.Level
+	ShutdownTimeout        time.Duration
+	Version                BuildInfo
 }
 
 type BuildInfo struct {
@@ -62,19 +64,26 @@ func LoadConfig(serviceName string, defaultPort int, build BuildInfo) (Config, e
 	databaseURL := strings.TrimSpace(os.Getenv("SEATD_DATABASE_URL"))
 	guestWebOrigin := strings.TrimSpace(os.Getenv("SEATD_GUEST_WEB_ORIGIN"))
 	guestAPIBaseURL := strings.TrimSpace(os.Getenv("SEATD_GUEST_PUBLIC_API_BASE_URL"))
+	internalAPISecret := strings.TrimSpace(os.Getenv("SEATD_INTERNAL_API_SECRET"))
+	trustedIdentityHeaders, err := getBool("SEATD_TRUSTED_IDENTITY_HEADERS", false)
+	if err != nil {
+		return Config{}, err
+	}
 
 	build = normalizeBuildInfo(build)
 
 	return Config{
-		Name:            serviceName,
-		Environment:     env,
-		Address:         fmt.Sprintf(":%d", port),
-		DatabaseURL:     databaseURL,
-		GuestWebOrigin:  guestWebOrigin,
-		GuestAPIBaseURL: guestAPIBaseURL,
-		LogLevel:        level,
-		ShutdownTimeout: shutdownTimeout,
-		Version:         build,
+		Name:                   serviceName,
+		Environment:            env,
+		Address:                fmt.Sprintf(":%d", port),
+		DatabaseURL:            databaseURL,
+		GuestWebOrigin:         guestWebOrigin,
+		GuestAPIBaseURL:        guestAPIBaseURL,
+		InternalAPISecret:      internalAPISecret,
+		TrustedIdentityHeaders: trustedIdentityHeaders,
+		LogLevel:               level,
+		ShutdownTimeout:        shutdownTimeout,
+		Version:                build,
 	}, nil
 }
 
@@ -124,6 +133,21 @@ func getDuration(key string, fallback time.Duration) (time.Duration, error) {
 		return 0, fmt.Errorf("%s must be greater than zero", key)
 	}
 	return duration, nil
+}
+
+func getBool(key string, fallback bool) (bool, error) {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return fallback, nil
+	}
+	switch strings.ToLower(value) {
+	case "1", "true", "t", "yes", "y", "on":
+		return true, nil
+	case "0", "false", "f", "no", "n", "off":
+		return false, nil
+	default:
+		return false, fmt.Errorf("%s must be a boolean: %q", key, value)
+	}
 }
 
 func getEnv(key, fallback string) string {

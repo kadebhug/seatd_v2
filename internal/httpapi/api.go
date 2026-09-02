@@ -33,6 +33,7 @@ const (
 	headerLocationID     = "X-Seatd-Location-ID"
 	headerActorRef       = "X-Seatd-Actor-Ref"
 	headerDeviceID       = "X-Seatd-Device-ID"
+	headerInternalSecret = "X-Seatd-Internal-Secret"
 )
 
 type API struct {
@@ -68,6 +69,10 @@ func NewHandler(cfg app.Config, logger *slog.Logger, pool *pgxpool.Pool) http.Ha
 	mux.HandleFunc("POST /v1/guest/qr/{token}/requests", api.createGuestRequest)
 	mux.HandleFunc("GET /v1/guest/qr/{token}/requests/{id}", api.getGuestRequest)
 	mux.HandleFunc("POST /v1/guest/qr/{token}/requests/{id}/cancel", api.cancelGuestRequest)
+	mux.HandleFunc("POST /v1/auth/oidc/session", api.createOIDCWebSession)
+	mux.HandleFunc("GET /v1/auth/session", api.getWebSession)
+	mux.HandleFunc("POST /v1/auth/session/rotate", api.rotateWebSession)
+	mux.HandleFunc("POST /v1/auth/session/logout", api.logoutWebSession)
 	mux.HandleFunc("GET /v1/organisations/{id}", api.getOrganisation)
 	mux.HandleFunc("PUT /v1/organisations/{id}", api.updateOrganisation)
 	mux.HandleFunc("GET /v1/owner/snapshot", api.getOwnerSnapshot)
@@ -134,6 +139,10 @@ type requestContext struct {
 	LocationID     uuid.UUID
 	ActorRef       string
 	DeviceID       uuid.NullUUID
+	UserProfileID  uuid.NullUUID
+	PrincipalType  principalType
+	Roles          []string
+	Permissions    []string
 }
 
 type apiError struct {
@@ -260,11 +269,12 @@ type deviceDTO struct {
 }
 
 type membershipDTO struct {
-	ID         string  `json:"id"`
-	Scope      string  `json:"scope"`
-	LocationID *string `json:"locationId,omitempty"`
-	MemberRef  string  `json:"memberRef"`
-	Role       string  `json:"role"`
+	ID             string  `json:"id"`
+	Scope          string  `json:"scope"`
+	OrganisationID string  `json:"organisationId"`
+	LocationID     *string `json:"locationId,omitempty"`
+	MemberRef      string  `json:"memberRef"`
+	Role           string  `json:"role"`
 }
 
 type timelineEventDTO struct {
@@ -1576,6 +1586,20 @@ func decodeJSONBody(w http.ResponseWriter, r *http.Request, dst any) bool {
 }
 
 func (api *API) requestContext(w http.ResponseWriter, r *http.Request, requireLocation bool, requireActor bool) (requestContext, bool) {
+	if !isDevelopmentEnvironment(api.cfg.Environment) {
+		if api.cfg.TrustedIdentityHeaders && hasClientIdentityHeaders(r) {
+			if !api.authorizeInternalRequest(w, r) {
+				return requestContext{}, false
+			}
+		} else {
+			if hasClientIdentityHeaders(r) {
+				writeError(w, http.StatusBadRequest, "validation_failed", "client-supplied identity headers are not accepted", nil)
+				return requestContext{}, false
+			}
+			return api.authenticatedRequestContext(w, r, requireLocation, requireActor)
+		}
+	}
+
 	orgID, ok := parseHeaderUUID(w, r, headerOrganisationID, true)
 	if !ok {
 		return requestContext{}, false
@@ -1598,7 +1622,160 @@ func (api *API) requestContext(w http.ResponseWriter, r *http.Request, requireLo
 		LocationID:     locationID,
 		ActorRef:       actorRef,
 		DeviceID:       uuid.NullUUID{UUID: deviceID, Valid: deviceID != uuid.Nil},
+		PrincipalType:  principalTrustedHeader,
 	}, true
+}
+
+func hasClientIdentityHeaders(r *http.Request) bool {
+	return strings.TrimSpace(r.Header.Get(headerActorRef)) != "" ||
+		strings.TrimSpace(r.Header.Get(headerDeviceID)) != ""
+}
+
+func routeAuthPolicy(r *http.Request) authPolicy {
+	policy := authPolicy{
+		Permission:      routePermission(r),
+		AllowUser:       true,
+		AllowDevice:     routeAllowsDevice(r),
+		RequireLocation: routeRequiresLocation(r),
+		RequireActor:    routeRequiresActor(r),
+	}
+	if routeRequiresUser(r) {
+		policy.AllowDevice = false
+	}
+	return policy
+}
+
+func routeRequiresUser(r *http.Request) bool {
+	path := r.URL.Path
+	if strings.HasPrefix(path, "/v1/organisations/") ||
+		strings.HasPrefix(path, "/v1/devices") ||
+		strings.HasPrefix(path, "/v1/integrations") ||
+		strings.HasPrefix(path, "/v1/analytics") ||
+		strings.HasPrefix(path, "/v1/service-periods") ||
+		strings.Contains(path, "/qr-capabilities") {
+		return true
+	}
+	switch {
+	case r.Method != http.MethodGet && strings.HasPrefix(path, "/v1/locations/"):
+		return true
+	case r.Method != http.MethodGet && strings.HasPrefix(path, "/v1/floors"):
+		return true
+	case r.Method != http.MethodGet && strings.HasPrefix(path, "/v1/zones"):
+		return true
+	case r.Method != http.MethodGet && strings.HasPrefix(path, "/v1/tables") &&
+		!strings.HasSuffix(path, "/occupy") &&
+		!strings.HasSuffix(path, "/clear"):
+		return true
+	default:
+		return false
+	}
+}
+
+func routeAllowsDevice(r *http.Request) bool {
+	path := r.URL.Path
+	if path == "/v1/location-state" ||
+		path == "/v1/assists" ||
+		strings.HasPrefix(path, "/v1/floors") ||
+		strings.HasPrefix(path, "/v1/tables") ||
+		strings.HasPrefix(path, "/v1/floors/") {
+		return true
+	}
+	if strings.HasPrefix(path, "/v1/assists/") {
+		return r.Method == http.MethodPost
+	}
+	if strings.HasPrefix(path, "/v1/locations/") {
+		return r.Method == http.MethodGet
+	}
+	return false
+}
+
+func routePermission(r *http.Request) string {
+	path := r.URL.Path
+	if strings.HasPrefix(path, "/v1/devices") {
+		return identity.PermissionDeviceManage
+	}
+	if strings.HasPrefix(path, "/v1/integrations") {
+		if r.Method == http.MethodGet {
+			return identity.PermissionIntegrationsRead
+		}
+		return identity.PermissionIntegrationsManage
+	}
+	if strings.HasPrefix(path, "/v1/analytics") ||
+		strings.HasPrefix(path, "/v1/service-periods") {
+		return identity.PermissionAnalyticsRead
+	}
+	if strings.HasPrefix(path, "/v1/organisations/") {
+		if r.Method == http.MethodGet {
+			return identity.PermissionOrganisationManage
+		}
+		return identity.PermissionOrganisationManage
+	}
+	if strings.HasPrefix(path, "/v1/locations/") {
+		if r.Method == http.MethodGet {
+			return identity.PermissionLayoutRead
+		}
+		return identity.PermissionLocationManage
+	}
+	if strings.HasPrefix(path, "/v1/audit/") {
+		return identity.PermissionAuditRead
+	}
+	if strings.HasPrefix(path, "/v1/owner/snapshot") ||
+		strings.HasPrefix(path, "/v1/layout/") ||
+		strings.Contains(path, "/qr-capabilities") {
+		if r.Method == http.MethodGet {
+			return identity.PermissionLayoutRead
+		}
+		return identity.PermissionLayoutWrite
+	}
+	if strings.HasPrefix(path, "/v1/floors") ||
+		strings.HasPrefix(path, "/v1/zones") {
+		if r.Method == http.MethodGet {
+			return identity.PermissionLayoutRead
+		}
+		return identity.PermissionLayoutWrite
+	}
+	if strings.HasPrefix(path, "/v1/tables") {
+		if strings.HasSuffix(path, "/occupy") || strings.HasSuffix(path, "/clear") {
+			return identity.PermissionOperationsWrite
+		}
+		if r.Method == http.MethodGet {
+			return identity.PermissionLayoutRead
+		}
+		return identity.PermissionLayoutWrite
+	}
+	if path == "/v1/location-state" ||
+		path == "/v1/assists" {
+		return identity.PermissionOperationsRead
+	}
+	if strings.HasPrefix(path, "/v1/assists/") {
+		return identity.PermissionOperationsWrite
+	}
+	if path == "/v1/memberships" {
+		return identity.PermissionOrganisationManage
+	}
+	return ""
+}
+
+func routeRequiresLocation(r *http.Request) bool {
+	path := r.URL.Path
+	return path == "/v1/location-state" ||
+		path == "/v1/assists" ||
+		strings.HasPrefix(path, "/v1/locations/") ||
+		strings.HasPrefix(path, "/v1/floors") ||
+		strings.HasPrefix(path, "/v1/zones") ||
+		strings.HasPrefix(path, "/v1/tables") ||
+		strings.HasPrefix(path, "/v1/layout/") ||
+		strings.HasPrefix(path, "/v1/audit/") ||
+		strings.HasPrefix(path, "/v1/analytics") ||
+		strings.HasPrefix(path, "/v1/service-periods") ||
+		strings.HasPrefix(path, "/v1/integrations")
+}
+
+func routeRequiresActor(r *http.Request) bool {
+	return r.Method != http.MethodGet ||
+		strings.HasPrefix(r.URL.Path, "/v1/owner/snapshot") ||
+		strings.HasPrefix(r.URL.Path, "/v1/layout/editor-snapshot") ||
+		strings.HasPrefix(r.URL.Path, "/v1/service-periods")
 }
 
 func (api *API) inTenantTx(ctx context.Context, req requestContext, fn func(*db.Queries) error) error {
@@ -2128,12 +2305,25 @@ func pairingCodeFromDB(pairingCode db.DevicePairingCode, code string) pairingCod
 }
 
 func organisationMembershipFromDB(membership db.OrganisationMembership) membershipDTO {
-	return membershipDTO{ID: membership.ID.String(), Scope: "organisation", MemberRef: membership.MemberRef, Role: membership.Role}
+	return membershipDTO{
+		ID:             membership.ID.String(),
+		Scope:          "organisation",
+		OrganisationID: membership.OrganisationID.String(),
+		MemberRef:      membership.MemberRef,
+		Role:           membership.Role,
+	}
 }
 
 func locationMembershipFromDB(membership db.LocationMembership) membershipDTO {
 	locationID := membership.LocationID.String()
-	return membershipDTO{ID: membership.ID.String(), Scope: "location", LocationID: &locationID, MemberRef: membership.MemberRef, Role: membership.Role}
+	return membershipDTO{
+		ID:             membership.ID.String(),
+		Scope:          "location",
+		OrganisationID: membership.OrganisationID.String(),
+		LocationID:     &locationID,
+		MemberRef:      membership.MemberRef,
+		Role:           membership.Role,
+	}
 }
 
 func analyticsSummaryFromDomain(summary analytics.Summary) analyticsSummaryDTO {

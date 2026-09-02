@@ -76,6 +76,11 @@ export function AppShell({
               </select>
             </label>
           ) : null}
+          <form action="/api/auth/logout" method="post">
+            <button className="button secondary" type="submit">
+              Sign out
+            </button>
+          </form>
         </header>
         {children}
       </div>

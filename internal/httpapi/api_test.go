@@ -7,8 +7,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
+
 	"github.com/kadebhug/seatd_v2/internal/app"
 	"github.com/kadebhug/seatd_v2/internal/domain/configuration"
+	"github.com/kadebhug/seatd_v2/internal/domain/identity"
 )
 
 func TestCommandRequiresDevelopmentHeaders(t *testing.T) {
@@ -36,6 +39,7 @@ func TestCommandRejectsInvalidPathUUID(t *testing.T) {
 	handler.ServeHTTP(rec, req)
 
 	assertAPIError(t, rec, http.StatusBadRequest, "validation_failed")
+	assertAPIErrorMessage(t, rec, "id must be a UUID")
 }
 
 func TestCommandRejectsMissingCommandID(t *testing.T) {
@@ -64,6 +68,122 @@ func TestOwnerSnapshotRequiresActor(t *testing.T) {
 	handler.ServeHTTP(rec, req)
 
 	assertAPIError(t, rec, http.StatusBadRequest, "validation_failed")
+}
+
+func TestProductionRequestContextRejectsForgedIdentityHeaders(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(app.Config{Environment: app.EnvProduction}, nil, nil)
+	req := httptest.NewRequest(http.MethodPost, "/v1/tables/not-a-uuid/occupy", strings.NewReader(`{}`))
+	req.Header.Set(headerOrganisationID, "11111111-1111-1111-1111-111111111111")
+	req.Header.Set(headerLocationID, "22222222-2222-2222-2222-222222222222")
+	req.Header.Set(headerActorRef, "user:owner-demo")
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	assertAPIError(t, rec, http.StatusBadRequest, "validation_failed")
+	assertAPIErrorMessage(t, rec, "client-supplied identity headers are not accepted")
+}
+
+func TestProductionRequestContextAllowsTrustedIdentityHeaders(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(app.Config{
+		Environment:            app.EnvProduction,
+		InternalAPISecret:      "expected-secret",
+		TrustedIdentityHeaders: true,
+	}, nil, nil)
+	req := httptest.NewRequest(http.MethodPost, "/v1/tables/not-a-uuid/occupy", strings.NewReader(`{}`))
+	req.Header.Set(headerOrganisationID, "11111111-1111-1111-1111-111111111111")
+	req.Header.Set(headerLocationID, "22222222-2222-2222-2222-222222222222")
+	req.Header.Set(headerActorRef, "user:owner-demo")
+	req.Header.Set(headerInternalSecret, "expected-secret")
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	assertAPIError(t, rec, http.StatusBadRequest, "validation_failed")
+	assertAPIErrorMessage(t, rec, "id must be a UUID")
+}
+
+func TestProductionTrustedIdentityHeadersRequireInternalSecret(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(app.Config{
+		Environment:            app.EnvProduction,
+		InternalAPISecret:      "expected-secret",
+		TrustedIdentityHeaders: true,
+	}, nil, nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/owner/snapshot", nil)
+	req.Header.Set(headerOrganisationID, "11111111-1111-1111-1111-111111111111")
+	req.Header.Set(headerLocationID, "22222222-2222-2222-2222-222222222222")
+	req.Header.Set(headerActorRef, "user:owner-demo")
+	req.Header.Set(headerInternalSecret, "wrong-secret")
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	assertAPIError(t, rec, http.StatusUnauthorized, "unauthorized")
+}
+
+func TestSessionAllowsScopeRequiresOrganisationMembershipForOrganisationScope(t *testing.T) {
+	t.Parallel()
+
+	orgID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	locationID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
+	session := identity.WebSession{
+		Memberships: []identity.Membership{
+			{
+				OrganisationID: orgID,
+				LocationID:     locationID,
+				Role:           identity.RoleLocationManager,
+			},
+		},
+	}
+
+	if sessionAllowsScope(session, orgID, uuid.Nil) {
+		t.Fatal("sessionAllowsScope() = true for organisation scope with only a location membership")
+	}
+	if !sessionAllowsScope(session, orgID, locationID) {
+		t.Fatal("sessionAllowsScope() = false for matching location membership")
+	}
+}
+
+func TestSessionPermissionsExcludeLocationRolesFromOrganisationScope(t *testing.T) {
+	t.Parallel()
+
+	orgID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	locationID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
+	session := identity.WebSession{
+		Memberships: []identity.Membership{
+			{
+				OrganisationID: orgID,
+				LocationID:     locationID,
+				Role:           identity.RoleLocationManager,
+			},
+		},
+	}
+
+	if hasPermission(sessionPermissions(session, orgID, uuid.Nil), identity.PermissionDeviceManage) {
+		t.Fatal("organisation-scope permissions include a location-scoped role")
+	}
+	if !hasPermission(sessionPermissions(session, orgID, locationID), identity.PermissionDeviceManage) {
+		t.Fatal("location-scope permissions exclude the matching location role")
+	}
+}
+
+func TestProductionOIDCSessionCreationRequiresInternalSecret(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(app.Config{Environment: app.EnvProduction, InternalAPISecret: "expected-secret"}, nil, nil)
+	req := httptest.NewRequest(http.MethodPost, "/v1/auth/oidc/session", strings.NewReader(`{}`))
+	req.Header.Set(headerInternalSecret, "wrong-secret")
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	assertAPIError(t, rec, http.StatusUnauthorized, "unauthorized")
 }
 
 func TestDeviceHeartbeatRequiresBearerCredential(t *testing.T) {
@@ -136,5 +256,16 @@ func assertAPIError(t *testing.T, rec *httptest.ResponseRecorder, status int, co
 	}
 	if response.Error.Code != code {
 		t.Fatalf("error code = %q, want %q", response.Error.Code, code)
+	}
+}
+
+func assertAPIErrorMessage(t *testing.T, rec *httptest.ResponseRecorder, message string) {
+	t.Helper()
+	var response errorResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode error response: %v", err)
+	}
+	if response.Error.Message != message {
+		t.Fatalf("error message = %q, want %q", response.Error.Message, message)
 	}
 }
