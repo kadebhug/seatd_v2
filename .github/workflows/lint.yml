@@ -24,8 +24,13 @@ jobs:
       - run: dart pub get --directory packages/dart-seatd-client
       - run: flutter pub get --directory apps/waiter
       - run: flutter pub get --directory apps/display
-      - run: gofmt -w ./apps ./internal
-      - run: git diff --exit-code
+      - name: Check Go formatting
+        run: |
+          unformatted="$(gofmt -l ./apps ./internal)"
+          if [[ -n "$unformatted" ]]; then
+            printf 'Go files must be formatted with gofmt:\n%s\n' "$unformatted"
+            exit 1
+          fi
       - run: go vet ./apps/... ./internal/...
       - run: npm run lint --workspaces --if-present
       - run: dart analyze
