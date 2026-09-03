@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -170,6 +171,91 @@ func TestSessionPermissionsExcludeLocationRolesFromOrganisationScope(t *testing.
 	}
 	if !hasPermission(sessionPermissions(session, orgID, locationID), identity.PermissionDeviceManage) {
 		t.Fatal("location-scope permissions exclude the matching location role")
+	}
+}
+
+func TestRequireRequestPermissionAllowsResolvedPermission(t *testing.T) {
+	t.Parallel()
+
+	err := requireRequestPermission(t.Context(), nil, requestContext{
+		Permissions: []string{identity.PermissionOperationsRead},
+	}, tenantAuthzLocation, identity.PermissionOperationsRead)
+	if err != nil {
+		t.Fatalf("requireRequestPermission() error = %v, want nil", err)
+	}
+}
+
+func TestRequireRequestPermissionRejectsMissingActor(t *testing.T) {
+	t.Parallel()
+
+	err := requireRequestPermission(t.Context(), nil, requestContext{
+		Permissions: []string{identity.PermissionLayoutRead},
+	}, tenantAuthzLocation, identity.PermissionOperationsRead)
+	if !errors.Is(err, errForbidden) {
+		t.Fatalf("requireRequestPermission() error = %v, want errForbidden", err)
+	}
+}
+
+func TestRoutePermissionForTenantReadSurfaces(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		method string
+		path   string
+		want   string
+	}{
+		{
+			name:   "membership list",
+			method: http.MethodGet,
+			path:   "/v1/memberships",
+			want:   identity.PermissionOrganisationManage,
+		},
+		{
+			name:   "device list",
+			method: http.MethodGet,
+			path:   "/v1/devices",
+			want:   identity.PermissionDeviceManage,
+		},
+		{
+			name:   "location state",
+			method: http.MethodGet,
+			path:   "/v1/location-state",
+			want:   identity.PermissionOperationsRead,
+		},
+		{
+			name:   "active assists",
+			method: http.MethodGet,
+			path:   "/v1/assists",
+			want:   identity.PermissionOperationsRead,
+		},
+		{
+			name:   "audit timeline",
+			method: http.MethodGet,
+			path:   "/v1/audit/timeline",
+			want:   identity.PermissionAuditRead,
+		},
+		{
+			name:   "floor list",
+			method: http.MethodGet,
+			path:   "/v1/floors",
+			want:   identity.PermissionLayoutRead,
+		},
+		{
+			name:   "table detail",
+			method: http.MethodGet,
+			path:   "/v1/tables/55555555-5555-5555-5555-555555555551",
+			want:   identity.PermissionLayoutRead,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(tt.method, tt.path, nil)
+			if got := routePermission(req); got != tt.want {
+				t.Fatalf("routePermission() = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 

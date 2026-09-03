@@ -51,6 +51,7 @@ const (
 var (
 	ErrNotFound       = errors.New("not found")
 	ErrUnauthorized   = errors.New("unauthorized")
+	ErrForbidden      = errors.New("forbidden")
 	ErrAlreadyRevoked = errors.New("already revoked")
 	ErrValidation     = errors.New("validation failed")
 )
@@ -61,6 +62,12 @@ type Service struct {
 
 func NewService(pool *pgxpool.Pool) *Service {
 	return &Service{pool: pool}
+}
+
+type TenantActor struct {
+	OrganisationID uuid.UUID
+	LocationID     uuid.UUID
+	ActorRef       string
 }
 
 type ExternalIdentity struct {
@@ -478,11 +485,9 @@ func (s *Service) RegisterDevice(ctx context.Context, arg RegisterDeviceParams) 
 }
 
 type CreatePairingCodeParams struct {
-	OrganisationID uuid.UUID
-	LocationID     uuid.UUID
-	ActorRef       string
-	DeviceType     string
-	TTL            time.Duration
+	TenantActor
+	DeviceType string
+	TTL        time.Duration
 }
 
 type CreatePairingCodeResult struct {
@@ -491,9 +496,9 @@ type CreatePairingCodeResult struct {
 }
 
 func (s *Service) CreatePairingCode(ctx context.Context, arg CreatePairingCodeParams) (CreatePairingCodeResult, error) {
-	arg.ActorRef = strings.TrimSpace(arg.ActorRef)
-	if arg.OrganisationID == uuid.Nil || arg.LocationID == uuid.Nil || arg.ActorRef == "" {
-		return CreatePairingCodeResult{}, ErrValidation
+	arg.TenantActor = normalizeTenantActor(arg.TenantActor)
+	if err := validateTenantActor(arg.TenantActor, true); err != nil {
+		return CreatePairingCodeResult{}, err
 	}
 	if arg.DeviceType == "" {
 		arg.DeviceType = DeviceTypeDisplay
@@ -522,6 +527,9 @@ func (s *Service) CreatePairingCode(ctx context.Context, arg CreatePairingCodePa
 
 	var result CreatePairingCodeResult
 	err = s.inTenantTx(ctx, arg.OrganisationID, arg.LocationID, func(q *db.Queries) error {
+		if err := requireLocationPermission(ctx, q, arg.TenantActor, PermissionDeviceManage); err != nil {
+			return err
+		}
 		pairingCode, err := q.CreateDevicePairingCode(ctx, db.CreateDevicePairingCodeParams{
 			OrganisationID:          arg.OrganisationID,
 			LocationID:              arg.LocationID,
@@ -681,16 +689,29 @@ func (s *Service) RecordHeartbeat(ctx context.Context, arg HeartbeatParams) (db.
 	return device, err
 }
 
-func (s *Service) ListDevices(ctx context.Context, organisationID, locationID uuid.UUID) ([]db.Device, error) {
+func (s *Service) ListDevices(ctx context.Context, actor TenantActor) ([]db.Device, error) {
+	actor = normalizeTenantActor(actor)
+	if err := validateTenantActor(actor, false); err != nil {
+		return nil, err
+	}
 	var devices []db.Device
-	err := s.inTenantTx(ctx, organisationID, locationID, func(q *db.Queries) error {
+	err := s.inTenantTx(ctx, actor.OrganisationID, actor.LocationID, func(q *db.Queries) error {
+		if actor.LocationID == uuid.Nil {
+			if err := requireOrganisationPermission(ctx, q, actor, PermissionDeviceManage); err != nil {
+				return err
+			}
+		} else {
+			if err := requireLocationPermission(ctx, q, actor, PermissionDeviceManage); err != nil {
+				return err
+			}
+		}
 		var err error
-		if locationID == uuid.Nil {
-			devices, err = q.ListDevicesByOrganisation(ctx, organisationID)
+		if actor.LocationID == uuid.Nil {
+			devices, err = q.ListDevicesByOrganisation(ctx, actor.OrganisationID)
 		} else {
 			devices, err = q.ListDevicesByLocation(ctx, db.ListDevicesByLocationParams{
-				OrganisationID: organisationID,
-				LocationID:     nullableUUID(locationID),
+				OrganisationID: actor.OrganisationID,
+				LocationID:     nullableUUID(actor.LocationID),
 			})
 		}
 		if err != nil {
@@ -717,16 +738,39 @@ func (s *Service) TrustDevice(ctx context.Context, organisationID, deviceID uuid
 	return device, err
 }
 
-func (s *Service) RevokeDevice(ctx context.Context, organisationID, deviceID uuid.UUID) (db.Device, error) {
+func (s *Service) RevokeDevice(ctx context.Context, actor TenantActor, deviceID uuid.UUID) (db.Device, error) {
+	actor = normalizeTenantActor(actor)
+	if err := validateTenantActor(actor, false); err != nil {
+		return db.Device{}, err
+	}
 	var device db.Device
-	err := s.inTenantTx(ctx, organisationID, uuid.Nil, func(q *db.Queries) error {
+	err := s.inTenantTx(ctx, actor.OrganisationID, uuid.Nil, func(q *db.Queries) error {
+		current, err := q.GetDevice(ctx, db.GetDeviceParams{
+			ID:             deviceID,
+			OrganisationID: actor.OrganisationID,
+		})
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrNotFound
+			}
+			return fmt.Errorf("getting device: %w", err)
+		}
+		if current.LocationID.Valid {
+			scopedActor := actor
+			scopedActor.LocationID = current.LocationID.UUID
+			if err := requireLocationPermission(ctx, q, scopedActor, PermissionDeviceManage); err != nil {
+				return err
+			}
+		} else if err := requireOrganisationPermission(ctx, q, actor, PermissionDeviceManage); err != nil {
+			return err
+		}
 		if err := q.RevokeDeviceCredentials(ctx, db.RevokeDeviceCredentialsParams{
-			OrganisationID: organisationID,
+			OrganisationID: actor.OrganisationID,
 			DeviceID:       deviceID,
 		}); err != nil {
 			return fmt.Errorf("revoking device credentials: %w", err)
 		}
-		updated, err := q.RevokeDevice(ctx, db.RevokeDeviceParams{ID: deviceID, OrganisationID: organisationID})
+		updated, err := q.RevokeDevice(ctx, db.RevokeDeviceParams{ID: deviceID, OrganisationID: actor.OrganisationID})
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrAlreadyRevoked
@@ -800,6 +844,55 @@ SELECT set_config('seatd.platform_admin', 'false', true),
 		}
 		return fn(q)
 	})
+}
+
+func normalizeTenantActor(actor TenantActor) TenantActor {
+	actor.ActorRef = strings.TrimSpace(actor.ActorRef)
+	return actor
+}
+
+func validateTenantActor(actor TenantActor, requireLocation bool) error {
+	if actor.OrganisationID == uuid.Nil || (requireLocation && actor.LocationID == uuid.Nil) {
+		return ErrValidation
+	}
+	if actor.ActorRef == "" {
+		return ErrForbidden
+	}
+	return nil
+}
+
+func requireOrganisationPermission(ctx context.Context, q *db.Queries, actor TenantActor, permission string) error {
+	allowed, err := q.ActorHasOrganisationPermission(ctx, db.ActorHasOrganisationPermissionParams{
+		OrganisationID: actor.OrganisationID,
+		MemberRef:      actor.ActorRef,
+		PermissionName: permission,
+	})
+	if err != nil {
+		return fmt.Errorf("checking organisation permission: %w", err)
+	}
+	if !allowed {
+		return ErrForbidden
+	}
+	return nil
+}
+
+func requireLocationPermission(ctx context.Context, q *db.Queries, actor TenantActor, permission string) error {
+	if actor.LocationID == uuid.Nil {
+		return ErrForbidden
+	}
+	allowed, err := q.ActorHasLocationPermission(ctx, db.ActorHasLocationPermissionParams{
+		OrganisationID: actor.OrganisationID,
+		LocationID:     actor.LocationID,
+		MemberRef:      actor.ActorRef,
+		PermissionName: permission,
+	})
+	if err != nil {
+		return fmt.Errorf("checking location permission: %w", err)
+	}
+	if !allowed {
+		return ErrForbidden
+	}
+	return nil
 }
 
 func (s *Service) inTx(ctx context.Context, fn func(pgx.Tx, *db.Queries) error) error {

@@ -36,6 +36,15 @@ const (
 	headerInternalSecret = "X-Seatd-Internal-Secret"
 )
 
+var errForbidden = errors.New("forbidden")
+
+type tenantAuthzScope int
+
+const (
+	tenantAuthzOrganisation tenantAuthzScope = iota
+	tenantAuthzLocation
+)
+
 type API struct {
 	cfg       app.Config
 	logger    *slog.Logger
@@ -495,7 +504,12 @@ func (api *API) getOrganisation(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "not_found", "organisation not found", nil)
 		return
 	}
-	org, err := api.queries.GetOrganisation(r.Context(), id)
+	var org db.Organisation
+	err := api.inAuthorizedTenantTx(r.Context(), ctx, tenantAuthzOrganisation, identity.PermissionOrganisationManage, func(q *db.Queries) error {
+		var err error
+		org, err = q.GetOrganisation(r.Context(), id)
+		return err
+	})
 	if err != nil {
 		api.writeDBError(w, err)
 		return
@@ -564,7 +578,7 @@ func (api *API) getLocation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var location db.Location
-	err := api.inTenantTx(r.Context(), ctx, func(q *db.Queries) error {
+	err := api.inAuthorizedTenantTx(r.Context(), ctx, tenantAuthzLocation, identity.PermissionLayoutRead, func(q *db.Queries) error {
 		var err error
 		location, err = q.GetLocation(r.Context(), db.GetLocationParams{ID: id, OrganisationID: ctx.OrganisationID})
 		return err
@@ -611,7 +625,7 @@ func (api *API) listFloors(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var floors []db.Floor
-	err := api.inTenantTx(r.Context(), ctx, func(q *db.Queries) error {
+	err := api.inAuthorizedTenantTx(r.Context(), ctx, tenantAuthzLocation, identity.PermissionLayoutRead, func(q *db.Queries) error {
 		var err error
 		floors, err = q.ListFloorsByLocation(r.Context(), db.ListFloorsByLocationParams{
 			OrganisationID: ctx.OrganisationID,
@@ -728,7 +742,7 @@ func (api *API) listZones(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var zones []db.Zone
-	err := api.inTenantTx(r.Context(), ctx, func(q *db.Queries) error {
+	err := api.inAuthorizedTenantTx(r.Context(), ctx, tenantAuthzLocation, identity.PermissionLayoutRead, func(q *db.Queries) error {
 		var err error
 		zones, err = q.ListZonesByFloor(r.Context(), db.ListZonesByFloorParams{
 			OrganisationID: ctx.OrganisationID,
@@ -809,7 +823,7 @@ func (api *API) listTables(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var tables []db.Table
-	err := api.inTenantTx(r.Context(), ctx, func(q *db.Queries) error {
+	err := api.inAuthorizedTenantTx(r.Context(), ctx, tenantAuthzLocation, identity.PermissionLayoutRead, func(q *db.Queries) error {
 		var err error
 		tables, err = q.ListTablesByFloor(r.Context(), db.ListTablesByFloorParams{
 			OrganisationID: ctx.OrganisationID,
@@ -914,7 +928,7 @@ func (api *API) getLocationState(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var states []db.ListLocationTableStatesRow
-	err := api.inTenantTx(r.Context(), ctx, func(q *db.Queries) error {
+	err := api.inAuthorizedTenantTx(r.Context(), ctx, tenantAuthzLocation, identity.PermissionOperationsRead, func(q *db.Queries) error {
 		var err error
 		states, err = q.ListLocationTableStates(r.Context(), db.ListLocationTableStatesParams{
 			OrganisationID: ctx.OrganisationID,
@@ -944,7 +958,7 @@ func (api *API) listAssists(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var assists []db.AssistRequest
-	err := api.inTenantTx(r.Context(), ctx, func(q *db.Queries) error {
+	err := api.inAuthorizedTenantTx(r.Context(), ctx, tenantAuthzLocation, identity.PermissionOperationsRead, func(q *db.Queries) error {
 		var err error
 		assists, err = q.ListActiveAssistsByLocation(r.Context(), db.ListActiveAssistsByLocationParams{
 			OrganisationID: ctx.OrganisationID,
@@ -989,7 +1003,7 @@ func (api *API) getAuditTimeline(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var events []timelineEventDTO
-	err = api.inTenantDBTx(r.Context(), ctx, func(dbt db.DBTX, _ *db.Queries) error {
+	err = api.inAuthorizedTenantDBTx(r.Context(), ctx, tenantAuthzLocation, identity.PermissionAuditRead, func(dbt db.DBTX, _ *db.Queries) error {
 		rows, err := dbt.Query(r.Context(), `
 SELECT id, event_type, schema_version, occurred_at, actor_ref, device_id, entity_type, entity_id, entity_version, command_id, event_data
 FROM operational_events
@@ -1225,7 +1239,7 @@ func (api *API) listDevices(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	devices, err := api.ident.ListDevices(r.Context(), ctx.OrganisationID, ctx.LocationID)
+	devices, err := api.ident.ListDevices(r.Context(), identityActor(ctx))
 	if err != nil {
 		api.writeIdentityError(w, err)
 		return
@@ -1247,11 +1261,13 @@ func (api *API) createDevicePairingCode(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	result, err := api.ident.CreatePairingCode(r.Context(), identity.CreatePairingCodeParams{
-		OrganisationID: ctx.OrganisationID,
-		LocationID:     req.LocationID,
-		ActorRef:       ctx.ActorRef,
-		DeviceType:     req.DeviceType,
-		TTL:            time.Duration(req.TTLSeconds) * time.Second,
+		TenantActor: identity.TenantActor{
+			OrganisationID: ctx.OrganisationID,
+			LocationID:     req.LocationID,
+			ActorRef:       ctx.ActorRef,
+		},
+		DeviceType: req.DeviceType,
+		TTL:        time.Duration(req.TTLSeconds) * time.Second,
 	})
 	if err != nil {
 		api.writeIdentityError(w, err)
@@ -1325,10 +1341,12 @@ func (api *API) getDisplaySnapshot(w http.ResponseWriter, r *http.Request) {
 		LocationID:     device.LocationID.UUID,
 		ActorRef:       "device:" + device.ID.String(),
 		DeviceID:       uuid.NullUUID{UUID: device.ID, Valid: true},
+		PrincipalType:  principalDevice,
+		Permissions:    devicePermissions(device),
 	}
 	var states []db.ListLocationTableStatesRow
 	var assists []db.AssistRequest
-	err = api.inTenantTx(r.Context(), ctx, func(q *db.Queries) error {
+	err = api.inAuthorizedTenantTx(r.Context(), ctx, tenantAuthzLocation, identity.PermissionOperationsRead, func(q *db.Queries) error {
 		var err error
 		states, err = q.ListLocationTableStates(r.Context(), db.ListLocationTableStatesParams{
 			OrganisationID: ctx.OrganisationID,
@@ -1376,7 +1394,7 @@ func (api *API) revokeDevice(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	device, err := api.ident.RevokeDevice(r.Context(), ctx.OrganisationID, deviceID)
+	device, err := api.ident.RevokeDevice(r.Context(), identityActor(ctx), deviceID)
 	if err != nil {
 		api.writeIdentityError(w, err)
 		return
@@ -1389,7 +1407,7 @@ func (api *API) listMemberships(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	orgMemberships, locMemberships, err := api.listMembershipsForContext(r.Context(), ctx)
+	orgMemberships, locMemberships, err := api.listMembershipsForContext(r.Context(), ctx, identity.PermissionOrganisationManage)
 	if err != nil {
 		api.writeDBError(w, err)
 		return
@@ -1803,6 +1821,80 @@ SELECT set_config('seatd.platform_admin', 'false', true),
 	return nil
 }
 
+func (api *API) inAuthorizedTenantTx(
+	ctx context.Context,
+	req requestContext,
+	scope tenantAuthzScope,
+	permission string,
+	fn func(*db.Queries) error,
+) error {
+	return api.inAuthorizedTenantDBTx(ctx, req, scope, permission, func(_ db.DBTX, q *db.Queries) error {
+		return fn(q)
+	})
+}
+
+func (api *API) inAuthorizedTenantDBTx(
+	ctx context.Context,
+	req requestContext,
+	scope tenantAuthzScope,
+	permission string,
+	fn func(db.DBTX, *db.Queries) error,
+) error {
+	return api.inTenantDBTx(ctx, req, func(dbt db.DBTX, q *db.Queries) error {
+		if err := requireRequestPermission(ctx, q, req, scope, permission); err != nil {
+			return err
+		}
+		return fn(dbt, q)
+	})
+}
+
+func requireRequestPermission(
+	ctx context.Context,
+	q *db.Queries,
+	req requestContext,
+	scope tenantAuthzScope,
+	permission string,
+) error {
+	if permission == "" || hasPermission(req.Permissions, permission) {
+		return nil
+	}
+	if strings.TrimSpace(req.ActorRef) == "" {
+		return errForbidden
+	}
+
+	var (
+		allowed bool
+		err     error
+	)
+	switch scope {
+	case tenantAuthzOrganisation:
+		allowed, err = q.ActorHasOrganisationPermission(ctx, db.ActorHasOrganisationPermissionParams{
+			OrganisationID: req.OrganisationID,
+			MemberRef:      req.ActorRef,
+			PermissionName: permission,
+		})
+	case tenantAuthzLocation:
+		if req.LocationID == uuid.Nil {
+			return errForbidden
+		}
+		allowed, err = q.ActorHasLocationPermission(ctx, db.ActorHasLocationPermissionParams{
+			OrganisationID: req.OrganisationID,
+			LocationID:     req.LocationID,
+			MemberRef:      req.ActorRef,
+			PermissionName: permission,
+		})
+	default:
+		return errForbidden
+	}
+	if err != nil {
+		return fmt.Errorf("checking actor permission: %w", err)
+	}
+	if !allowed {
+		return errForbidden
+	}
+	return nil
+}
+
 func (api *API) inTenantDBTx(ctx context.Context, req requestContext, fn func(db.DBTX, *db.Queries) error) error {
 	tx, err := api.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
@@ -1830,7 +1922,7 @@ SELECT set_config('seatd.platform_admin', 'false', true),
 
 func (api *API) loadTableState(w http.ResponseWriter, r *http.Request, ctx requestContext, tableID uuid.UUID) (db.GetTableDetailRow, bool) {
 	var state db.GetTableDetailRow
-	err := api.inTenantTx(r.Context(), ctx, func(q *db.Queries) error {
+	err := api.inAuthorizedTenantTx(r.Context(), ctx, tenantAuthzLocation, identity.PermissionLayoutRead, func(q *db.Queries) error {
 		var err error
 		state, err = q.GetTableDetail(r.Context(), db.GetTableDetailParams{
 			ID:             tableID,
@@ -1922,6 +2014,8 @@ func (api *API) writeIdentityError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, identity.ErrUnauthorized):
 		writeError(w, http.StatusUnauthorized, "unauthorized", "credential is invalid", nil)
+	case errors.Is(err, identity.ErrForbidden):
+		writeError(w, http.StatusForbidden, "forbidden", "permission denied", nil)
 	case errors.Is(err, identity.ErrValidation):
 		writeError(w, http.StatusBadRequest, "validation_failed", "request validation failed", nil)
 	case errors.Is(err, identity.ErrAlreadyRevoked):
@@ -1951,12 +2045,15 @@ func (api *API) writeAnalyticsError(w http.ResponseWriter, err error) {
 }
 
 func (api *API) writeDBError(w http.ResponseWriter, err error) {
-	if errors.Is(err, pgx.ErrNoRows) {
+	switch {
+	case errors.Is(err, errForbidden):
+		writeError(w, http.StatusForbidden, "forbidden", "permission denied", nil)
+	case errors.Is(err, pgx.ErrNoRows):
 		writeError(w, http.StatusNotFound, "not_found", "resource not found", nil)
-		return
+	default:
+		api.logger.Error("database request failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "internal_error", "internal server error", nil)
 	}
-	api.logger.Error("database request failed", "error", err)
-	writeError(w, http.StatusInternalServerError, "internal_error", "internal server error", nil)
 }
 
 func writeError(w http.ResponseWriter, status int, code, message string, details map[string]string) {
@@ -2082,6 +2179,14 @@ func analyticsActor(ctx requestContext) analytics.TenantActor {
 	}
 }
 
+func identityActor(ctx requestContext) identity.TenantActor {
+	return identity.TenantActor{
+		OrganisationID: ctx.OrganisationID,
+		LocationID:     ctx.LocationID,
+		ActorRef:       ctx.ActorRef,
+	}
+}
+
 func servicePeriodInput(req servicePeriodRequest) analytics.ServicePeriodInput {
 	return analytics.ServicePeriodInput{
 		Name:            req.Name,
@@ -2145,10 +2250,10 @@ func rollback(tx pgx.Tx, ctx context.Context, err error) error {
 	return err
 }
 
-func (api *API) listMembershipsForContext(ctx context.Context, req requestContext) ([]db.OrganisationMembership, []db.LocationMembership, error) {
+func (api *API) listMembershipsForContext(ctx context.Context, req requestContext, permission string) ([]db.OrganisationMembership, []db.LocationMembership, error) {
 	var orgMemberships []db.OrganisationMembership
 	var locMemberships []db.LocationMembership
-	err := api.inTenantDBTx(ctx, req, func(dbt db.DBTX, _ *db.Queries) error {
+	err := api.inAuthorizedTenantDBTx(ctx, req, tenantAuthzOrganisation, permission, func(dbt db.DBTX, _ *db.Queries) error {
 		dbRows, err := dbt.Query(ctx, `
 SELECT id, organisation_id, member_ref, role, created_at, updated_at, user_profile_id, disabled_at
 FROM organisation_memberships

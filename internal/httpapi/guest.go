@@ -18,6 +18,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/kadebhug/seatd_v2/internal/domain/identity"
 	"github.com/kadebhug/seatd_v2/internal/domain/operations"
 	"github.com/kadebhug/seatd_v2/internal/store/db"
 )
@@ -169,7 +170,7 @@ func (api *API) listTableQRCapabilities(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	var capabilities []db.TableQrCapability
-	err := api.inTenantTx(r.Context(), ctx, func(q *db.Queries) error {
+	err := api.inAuthorizedTenantTx(r.Context(), ctx, tenantAuthzLocation, identity.PermissionLayoutRead, func(q *db.Queries) error {
 		var err error
 		capabilities, err = q.ListTableQRCapabilitiesByTable(r.Context(), db.ListTableQRCapabilitiesByTableParams{
 			OrganisationID: ctx.OrganisationID,
