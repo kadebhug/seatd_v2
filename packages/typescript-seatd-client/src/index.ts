@@ -3,6 +3,9 @@
 export const healthEndpoint = "/healthz";
 export const statusEndpoint = "/status";
 export const versionEndpoint = "/version";
+export const platformTenantsEndpoint = "/v1/platform/tenants";
+export const platformTenantEndpoint = "/v1/platform/tenants/{id}";
+export const platformTenantDiagnosticsEndpoint = "/v1/platform/tenants/{id}/diagnostics";
 export const organisationEndpoint = "/v1/organisations/{id}";
 export const ownerSnapshotEndpoint = "/v1/owner/snapshot";
 export const locationEndpoint = "/v1/locations/{id}";
@@ -226,6 +229,83 @@ export interface TableQRCapability {
 
 export interface TableQRCapabilitiesResponse {
   qrCapabilities: TableQRCapability[];
+}
+
+export interface PlatformTenantSummary {
+  id: string;
+  slug: string;
+  name: string;
+  status: "active" | "disabled";
+  createdAt: string;
+  updatedAt: string;
+  locationCount: number;
+  activeLocationCount: number;
+  disabledLocationCount: number;
+  deviceCount: number;
+  trustedDeviceCount: number;
+  lastDeviceSeenAt?: string;
+  lastAuditAt?: string;
+}
+
+export interface PlatformTenantOverview extends PlatformTenantSummary {
+  pendingDeviceCount: number;
+  revokedDeviceCount: number;
+}
+
+export interface PlatformLocation {
+  id: string;
+  organisationId: string;
+  slug: string;
+  name: string;
+  timezone: string;
+  status: "active" | "disabled";
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PlatformRoleCount {
+  role: string;
+  memberCount: number;
+}
+
+export interface PlatformDeviceCount {
+  trustState: string;
+  deviceType: string;
+  deviceCount: number;
+  lastSeenAt?: string;
+}
+
+export interface PlatformDiagnostics {
+  disabledLocationCount: number;
+  neverHeartbeatDeviceCount: number;
+  staleDeviceCount: number;
+  pendingDeviceCount: number;
+  revokedDeviceCount: number;
+  integrationCount: number;
+  connectedIntegrationCount: number;
+  degradedIntegrationCount: number;
+  disconnectedIntegrationCount: number;
+  lastSuccessfulSyncAt?: string;
+  recentPlatformAuditCount: number;
+  analyticsLagSeconds?: number;
+  analyticsRebuildStatus?: string;
+  analyticsCheckpointUpdatedAt?: string;
+}
+
+export interface PlatformTenantsResponse {
+  tenants: PlatformTenantSummary[];
+}
+
+export interface PlatformTenantDetail {
+  tenant: PlatformTenantOverview;
+  locations: PlatformLocation[];
+  roleCounts: PlatformRoleCount[];
+  deviceCounts: PlatformDeviceCount[];
+  diagnostics: PlatformDiagnostics;
+}
+
+export interface PlatformDiagnosticsResponse {
+  diagnostics: PlatformDiagnostics;
 }
 
 export interface QRExport extends TableQRCapability {

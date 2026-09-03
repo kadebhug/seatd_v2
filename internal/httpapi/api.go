@@ -82,6 +82,9 @@ func NewHandler(cfg app.Config, logger *slog.Logger, pool *pgxpool.Pool) http.Ha
 	mux.HandleFunc("GET /v1/auth/session", api.getWebSession)
 	mux.HandleFunc("POST /v1/auth/session/rotate", api.rotateWebSession)
 	mux.HandleFunc("POST /v1/auth/session/logout", api.logoutWebSession)
+	mux.HandleFunc("GET /v1/platform/tenants", api.searchPlatformTenants)
+	mux.HandleFunc("GET /v1/platform/tenants/{id}", api.getPlatformTenant)
+	mux.HandleFunc("GET /v1/platform/tenants/{id}/diagnostics", api.getPlatformTenantDiagnostics)
 	mux.HandleFunc("GET /v1/organisations/{id}", api.getOrganisation)
 	mux.HandleFunc("PUT /v1/organisations/{id}", api.updateOrganisation)
 	mux.HandleFunc("GET /v1/owner/snapshot", api.getOwnerSnapshot)
@@ -1665,7 +1668,8 @@ func routeAuthPolicy(r *http.Request) authPolicy {
 
 func routeRequiresUser(r *http.Request) bool {
 	path := r.URL.Path
-	if strings.HasPrefix(path, "/v1/organisations/") ||
+	if strings.HasPrefix(path, "/v1/platform/") ||
+		strings.HasPrefix(path, "/v1/organisations/") ||
 		strings.HasPrefix(path, "/v1/devices") ||
 		strings.HasPrefix(path, "/v1/integrations") ||
 		strings.HasPrefix(path, "/v1/analytics") ||
@@ -1709,6 +1713,9 @@ func routeAllowsDevice(r *http.Request) bool {
 
 func routePermission(r *http.Request) string {
 	path := r.URL.Path
+	if strings.HasPrefix(path, "/v1/platform/") {
+		return identity.PermissionPlatformAdmin
+	}
 	if strings.HasPrefix(path, "/v1/devices") {
 		return identity.PermissionDeviceManage
 	}

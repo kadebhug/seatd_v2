@@ -32,6 +32,14 @@ const demoSession: SeatdSession = {
   roles: ["organisation_owner"],
 };
 
+const platformDemoSession: SeatdSession = {
+  actorRef: "user:platform-demo",
+  displayName: "Platform Demo",
+  organisationId: "11111111-1111-1111-1111-111111111111",
+  locationId: "",
+  roles: ["platform_admin"],
+};
+
 export async function getSession(): Promise<SeatdSession> {
   const jar = await cookies();
   const env = process.env.SEATD_ENV ?? "local";
@@ -54,6 +62,9 @@ export async function getSession(): Promise<SeatdSession> {
     (env === "local" || env === "test") &&
     process.env.SEATD_WEB_DEV_SESSION !== "disabled"
   ) {
+    if (process.env.SEATD_WEB_DEV_SESSION === "platform") {
+      return platformDemoSession;
+    }
     return demoSession;
   }
 
@@ -65,6 +76,25 @@ export async function getSession(): Promise<SeatdSession> {
   redirect("/api/auth/login?returnTo=/owner");
 }
 
+export async function getCookieSession(): Promise<SeatdSession | null> {
+  const jar = await cookies();
+  const env = process.env.SEATD_ENV ?? "local";
+  let secret: string | null = null;
+  try {
+    secret = unsignValue(jar.get(sessionCookieName)?.value);
+  } catch (error) {
+    if (env !== "local" && env !== "test") {
+      throw error;
+    }
+  }
+  if (!secret) {
+    return null;
+  }
+
+  const apiSession = await validateAPISession(secret);
+  return apiSession ? seatdSessionFromAPI(apiSession, secret) : null;
+}
+
 export function canAccessOwner(session: SeatdSession): boolean {
   return session.roles.some(
     (role) => role === "organisation_owner" || role === "location_manager",
@@ -72,9 +102,7 @@ export function canAccessOwner(session: SeatdSession): boolean {
 }
 
 export function canAccessPlatform(session: SeatdSession): boolean {
-  return session.roles.some(
-    (role) => role === "platform_admin" || role === "support",
-  );
+  return session.roles.some((role) => role === "platform_admin");
 }
 
 function seatdSessionFromAPI(

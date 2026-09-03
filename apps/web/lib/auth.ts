@@ -124,6 +124,13 @@ export function oidcScopes(): string {
   return process.env.SEATD_OIDC_SCOPES?.trim() || "openid profile email";
 }
 
+export function safeReturnTo(value: string | null | undefined): string {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) {
+    return "/owner";
+  }
+  return value;
+}
+
 export function requireOIDCConfig() {
   const issuer = process.env.SEATD_OIDC_ISSUER?.trim();
   const clientId = process.env.SEATD_OIDC_CLIENT_ID?.trim();

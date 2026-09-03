@@ -6,6 +6,7 @@ import {
   fetchDiscovery,
   oidcTransactionCookieName,
   randomURLToken,
+  safeReturnTo,
   webBaseURL,
 } from "../../../../lib/auth";
 
@@ -31,11 +32,4 @@ export async function GET(request: Request) {
     maxAge: 10 * 60,
   });
   return NextResponse.redirect(authorizationURL(discovery, transaction));
-}
-
-function safeReturnTo(value: string | null): string {
-  if (!value || !value.startsWith("/") || value.startsWith("//")) {
-    return "/owner";
-  }
-  return value;
 }

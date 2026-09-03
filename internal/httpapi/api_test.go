@@ -212,6 +212,18 @@ func TestRoutePermissionForTenantReadSurfaces(t *testing.T) {
 			want:   identity.PermissionOrganisationManage,
 		},
 		{
+			name:   "platform tenant search",
+			method: http.MethodGet,
+			path:   "/v1/platform/tenants",
+			want:   identity.PermissionPlatformAdmin,
+		},
+		{
+			name:   "platform tenant read",
+			method: http.MethodGet,
+			path:   "/v1/platform/tenants/11111111-1111-1111-1111-111111111111",
+			want:   identity.PermissionPlatformAdmin,
+		},
+		{
 			name:   "device list",
 			method: http.MethodGet,
 			path:   "/v1/devices",

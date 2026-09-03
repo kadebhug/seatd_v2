@@ -1,5 +1,10 @@
 import Image from "next/image";
-import { ArrowRight, Buildings, Monitor } from "@phosphor-icons/react/dist/ssr";
+import {
+  ArrowRight,
+  Buildings,
+  Monitor,
+  SignIn,
+} from "@phosphor-icons/react/dist/ssr";
 import {
   DemoForm,
   LandingInteractionLayer,
@@ -57,12 +62,18 @@ function MarketingHeader() {
         <a href="#for-restaurants">For Restaurants</a>
         <a href="#pricing">Pricing</a>
       </nav>
-      <a className="marketing-button marketing-button-small" href="#demo">
-        <span>Book a Demo</span>
-        <span aria-hidden="true" className="marketing-button-icon">
-          <ArrowRight size={15} weight="bold" />
-        </span>
-      </a>
+      <div className="marketing-header-actions">
+        <a className="marketing-login-link" href="/login?returnTo=/owner">
+          <SignIn size={17} weight="regular" />
+          <span>Sign in</span>
+        </a>
+        <a className="marketing-button marketing-button-small" href="#demo">
+          <span>Book a Demo</span>
+          <span aria-hidden="true" className="marketing-button-icon">
+            <ArrowRight size={15} weight="bold" />
+          </span>
+        </a>
+      </div>
     </header>
   );
 }

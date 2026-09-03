@@ -49,6 +49,76 @@
         }
       }
     },
+    "/v1/platform/tenants": {
+      "get": {
+        "operationId": "searchPlatformTenants",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/PlatformTenantsResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/platform/tenants/{id}": {
+      "get": {
+        "operationId": "getPlatformTenant",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IDPath"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/PlatformTenantDetailResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/platform/tenants/{id}/diagnostics": {
+      "get": {
+        "operationId": "getPlatformTenantDiagnostics",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IDPath"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/PlatformDiagnosticsResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
     "/v1/organisations/{id}": {
       "get": {
         "operationId": "getOrganisation",
@@ -2306,6 +2376,36 @@
           }
         }
       },
+      "PlatformTenantsResponse": {
+        "description": "Platform tenant search results",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/PlatformTenantsResponse"
+            }
+          }
+        }
+      },
+      "PlatformTenantDetailResponse": {
+        "description": "Platform tenant overview and diagnostics",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/PlatformTenantDetail"
+            }
+          }
+        }
+      },
+      "PlatformDiagnosticsResponse": {
+        "description": "Platform tenant diagnostics",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/PlatformDiagnosticsResponse"
+            }
+          }
+        }
+      },
       "FloorResponse": {
         "description": "Floor",
         "content": {
@@ -2952,6 +3052,301 @@
             "items": {
               "$ref": "#/components/schemas/Location"
             }
+          }
+        }
+      },
+      "PlatformTenantSummary": {
+        "type": "object",
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "status",
+          "createdAt",
+          "updatedAt",
+          "locationCount",
+          "activeLocationCount",
+          "disabledLocationCount",
+          "deviceCount",
+          "trustedDeviceCount"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "disabled"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "locationCount": {
+            "type": "integer"
+          },
+          "activeLocationCount": {
+            "type": "integer"
+          },
+          "disabledLocationCount": {
+            "type": "integer"
+          },
+          "deviceCount": {
+            "type": "integer"
+          },
+          "trustedDeviceCount": {
+            "type": "integer"
+          },
+          "lastDeviceSeenAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastAuditAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PlatformTenantOverview": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlatformTenantSummary"
+          },
+          {
+            "type": "object",
+            "required": [
+              "pendingDeviceCount",
+              "revokedDeviceCount"
+            ],
+            "properties": {
+              "pendingDeviceCount": {
+                "type": "integer"
+              },
+              "revokedDeviceCount": {
+                "type": "integer"
+              }
+            }
+          }
+        ]
+      },
+      "PlatformLocation": {
+        "type": "object",
+        "required": [
+          "id",
+          "organisationId",
+          "slug",
+          "name",
+          "timezone",
+          "status",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "organisationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "disabled"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PlatformRoleCount": {
+        "type": "object",
+        "required": [
+          "role",
+          "memberCount"
+        ],
+        "properties": {
+          "role": {
+            "type": "string"
+          },
+          "memberCount": {
+            "type": "integer"
+          }
+        }
+      },
+      "PlatformDeviceCount": {
+        "type": "object",
+        "required": [
+          "trustState",
+          "deviceType",
+          "deviceCount"
+        ],
+        "properties": {
+          "trustState": {
+            "type": "string"
+          },
+          "deviceType": {
+            "type": "string"
+          },
+          "deviceCount": {
+            "type": "integer"
+          },
+          "lastSeenAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PlatformDiagnostics": {
+        "type": "object",
+        "required": [
+          "disabledLocationCount",
+          "neverHeartbeatDeviceCount",
+          "staleDeviceCount",
+          "pendingDeviceCount",
+          "revokedDeviceCount",
+          "integrationCount",
+          "connectedIntegrationCount",
+          "degradedIntegrationCount",
+          "disconnectedIntegrationCount",
+          "recentPlatformAuditCount"
+        ],
+        "properties": {
+          "disabledLocationCount": {
+            "type": "integer"
+          },
+          "neverHeartbeatDeviceCount": {
+            "type": "integer"
+          },
+          "staleDeviceCount": {
+            "type": "integer"
+          },
+          "pendingDeviceCount": {
+            "type": "integer"
+          },
+          "revokedDeviceCount": {
+            "type": "integer"
+          },
+          "integrationCount": {
+            "type": "integer"
+          },
+          "connectedIntegrationCount": {
+            "type": "integer"
+          },
+          "degradedIntegrationCount": {
+            "type": "integer"
+          },
+          "disconnectedIntegrationCount": {
+            "type": "integer"
+          },
+          "lastSuccessfulSyncAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "recentPlatformAuditCount": {
+            "type": "integer"
+          },
+          "analyticsLagSeconds": {
+            "type": "number"
+          },
+          "analyticsRebuildStatus": {
+            "type": "string"
+          },
+          "analyticsCheckpointUpdatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PlatformTenantsResponse": {
+        "type": "object",
+        "required": [
+          "tenants"
+        ],
+        "properties": {
+          "tenants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlatformTenantSummary"
+            }
+          }
+        }
+      },
+      "PlatformTenantDetail": {
+        "type": "object",
+        "required": [
+          "tenant",
+          "locations",
+          "roleCounts",
+          "deviceCounts",
+          "diagnostics"
+        ],
+        "properties": {
+          "tenant": {
+            "$ref": "#/components/schemas/PlatformTenantOverview"
+          },
+          "locations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlatformLocation"
+            }
+          },
+          "roleCounts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlatformRoleCount"
+            }
+          },
+          "deviceCounts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlatformDeviceCount"
+            }
+          },
+          "diagnostics": {
+            "$ref": "#/components/schemas/PlatformDiagnostics"
+          }
+        }
+      },
+      "PlatformDiagnosticsResponse": {
+        "type": "object",
+        "required": [
+          "diagnostics"
+        ],
+        "properties": {
+          "diagnostics": {
+            "$ref": "#/components/schemas/PlatformDiagnostics"
           }
         }
       },

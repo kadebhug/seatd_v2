@@ -3,6 +3,7 @@ import type {
   AnalyticsSummary,
   AnalyticsTimeseriesResponse,
 } from "@seatd/typescript-seatd-client";
+import type { CSSProperties } from "react";
 import { getSession } from "../../../lib/session";
 import { seatdFetch } from "../../../lib/seatd-api";
 
@@ -66,9 +67,7 @@ export default async function OwnerAnalyticsPage() {
                   <div className="bar-track">
                     <div
                       className="bar-fill"
-                      style={{
-                        width: `${Math.min(100, point.metric.utilisationRate * 100)}%`,
-                      }}
+                      style={barFillStyle(point.metric.utilisationRate)}
                     />
                   </div>
                   <strong>{percent(point.metric.utilisationRate)}</strong>
@@ -223,6 +222,12 @@ function shortDate(value: string) {
 
 function percent(value: number) {
   return `${Math.round(value * 100)}%`;
+}
+
+function barFillStyle(value: number): CSSProperties {
+  return {
+    "--bar-scale": Math.min(1, Math.max(0, value)),
+  } as CSSProperties;
 }
 
 function hours(value: number) {

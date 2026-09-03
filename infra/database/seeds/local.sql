@@ -238,6 +238,7 @@ ON CONFLICT (token_hash) DO NOTHING;
 INSERT INTO organisation_memberships (organisation_id, member_ref, role)
 VALUES
     ('11111111-1111-1111-1111-111111111111', 'user:owner-demo', 'organisation_owner'),
+    ('11111111-1111-1111-1111-111111111111', 'user:platform-demo', 'platform_admin'),
     ('11111111-1111-1111-1111-111111111111', 'user:support-demo', 'read_only')
 ON CONFLICT (organisation_id, member_ref) DO NOTHING;
 
