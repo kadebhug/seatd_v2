@@ -1,5 +1,9 @@
 # Integrations Runbook
 
+The production incident runbook lives at
+[runbooks/integrations.md](runbooks/integrations.md). This file remains as a
+stable pointer for older links and local notes.
+
 ## Webhook Failures
 
 1. Open Owner -> Integrations.

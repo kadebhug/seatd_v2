@@ -203,6 +203,22 @@
         }
       }
     },
+    "/v1/onboarding/owner": {
+      "post": {
+        "operationId": "onboardOwner",
+        "requestBody": {
+          "$ref": "#/components/requestBodies/OwnerOnboardingRequest"
+        },
+        "responses": {
+          "201": {
+            "$ref": "#/components/responses/OwnerOnboardingResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
     "/v1/locations/{id}": {
       "get": {
         "operationId": "getLocation",
@@ -2351,6 +2367,16 @@
           }
         }
       },
+      "OwnerOnboardingRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/OwnerOnboardingRequest"
+            }
+          }
+        }
+      },
       "DeviceHeartbeatRequest": {
         "required": true,
         "content": {
@@ -2389,6 +2415,16 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/OwnerSnapshotResponse"
+            }
+          }
+        }
+      },
+      "OwnerOnboardingResponse": {
+        "description": "Owner onboarding result",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/OwnerOnboardingResponse"
             }
           }
         }
@@ -4298,11 +4334,296 @@
           }
         }
       },
+      "OwnerOnboardingRequest": {
+        "type": "object",
+        "required": [
+          "organisationName",
+          "organisationSlug",
+          "locationName",
+          "locationSlug",
+          "timezone"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "organisationName": {
+            "type": "string",
+            "minLength": 1
+          },
+          "organisationSlug": {
+            "type": "string",
+            "minLength": 1
+          },
+          "locationName": {
+            "type": "string",
+            "minLength": 1
+          },
+          "locationSlug": {
+            "type": "string",
+            "minLength": 1
+          },
+          "timezone": {
+            "type": "string",
+            "minLength": 1
+          },
+          "floor": {
+            "$ref": "#/components/schemas/OwnerOnboardingFloor"
+          },
+          "servicePeriods": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OwnerOnboardingServicePeriod"
+            }
+          },
+          "staff": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OwnerOnboardingStaff"
+            }
+          }
+        }
+      },
+      "OwnerOnboardingFloor": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "canvas": {
+            "type": "object"
+          },
+          "zones": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OwnerOnboardingZone"
+            }
+          },
+          "tables": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OwnerOnboardingTable"
+            }
+          },
+          "sortOrder": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "OwnerOnboardingZone": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sortOrder": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "OwnerOnboardingTable": {
+        "type": "object",
+        "required": [
+          "label",
+          "geometry"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "type": "string",
+            "minLength": 1
+          },
+          "capacityLabel": {
+            "type": "string"
+          },
+          "shape": {
+            "type": "string",
+            "enum": [
+              "rectangle",
+              "circle",
+              "square",
+              "custom"
+            ]
+          },
+          "geometry": {
+            "type": "object"
+          },
+          "zoneName": {
+            "type": "string"
+          }
+        }
+      },
+      "OwnerOnboardingServicePeriod": {
+        "type": "object",
+        "required": [
+          "name",
+          "daysOfWeek",
+          "startTime",
+          "endTime"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "daysOfWeek": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 6
+            }
+          },
+          "startTime": {
+            "type": "string"
+          },
+          "endTime": {
+            "type": "string"
+          }
+        }
+      },
+      "OwnerOnboardingStaff": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "location_manager",
+              "waiter",
+              "read_only"
+            ]
+          }
+        }
+      },
+      "OwnerOnboardingResponse": {
+        "type": "object",
+        "required": [
+          "organisation",
+          "location",
+          "zones",
+          "tables",
+          "servicePeriods",
+          "staff",
+          "session"
+        ],
+        "properties": {
+          "organisation": {
+            "$ref": "#/components/schemas/Organisation"
+          },
+          "location": {
+            "$ref": "#/components/schemas/Location"
+          },
+          "floor": {
+            "$ref": "#/components/schemas/Floor"
+          },
+          "zones": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Zone"
+            }
+          },
+          "tables": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Table"
+            }
+          },
+          "servicePeriods": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ServicePeriod"
+            }
+          },
+          "staff": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OwnerOnboardingStaff"
+            }
+          },
+          "session": {
+            "$ref": "#/components/schemas/WebSession"
+          }
+        }
+      },
+      "WebSession": {
+        "type": "object",
+        "required": [
+          "id",
+          "userProfileId",
+          "actorRef",
+          "displayName",
+          "issuedAt",
+          "expiresAt",
+          "memberships",
+          "locations"
+        ],
+        "properties": {
+          "sessionSecret": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "userProfileId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "actorRef": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "issuedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "memberships": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Membership"
+            }
+          },
+          "locations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Location"
+            }
+          }
+        }
+      },
       "ErrorCode": {
         "type": "string",
         "enum": [
           "validation_failed",
+          "unauthorized",
           "forbidden",
+          "already_exists",
           "tenant_disabled",
           "not_found",
           "version_conflict",

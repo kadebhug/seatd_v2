@@ -1,10 +1,17 @@
 import type { OwnerSnapshotResponse } from "@seatd/typescript-seatd-client";
+import { redirect } from "next/navigation";
 import { StatusBadge } from "../components/status-badge";
 import { seatdFetch } from "../../lib/seatd-api";
+import { getSession, needsOwnerOnboarding } from "../../lib/session";
 
 export const dynamic = "force-dynamic";
 
 export default async function OwnerPage() {
+  const session = await getSession();
+  if (needsOwnerOnboarding(session)) {
+    redirect("/owner/onboarding");
+  }
+
   const snapshot =
     await seatdFetch<OwnerSnapshotResponse>("/v1/owner/snapshot");
 

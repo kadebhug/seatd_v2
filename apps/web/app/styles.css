@@ -1084,6 +1084,60 @@ html {
   width: auto;
 }
 
+.onboarding-page {
+  max-width: 1180px;
+}
+
+.onboarding-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.table-draft-grid,
+.staff-draft-list {
+  display: grid;
+  gap: 10px;
+}
+
+.table-draft-row,
+.staff-draft-row {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.staff-draft-row {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.button-link {
+  align-items: center;
+  background: var(--seatd-signal);
+  border: 1px solid var(--seatd-signal);
+  border-radius: var(--seatd-radius-control);
+  color: var(--seatd-white);
+  display: inline-flex;
+  font-weight: 650;
+  justify-content: center;
+  min-height: 48px;
+  padding: 10px 16px;
+}
+
+.button-link:hover {
+  filter: brightness(0.96);
+  text-decoration: none;
+}
+
+.toast.error {
+  background: color-mix(in srgb, var(--seatd-danger) 14%, var(--seatd-white));
+  border-color: color-mix(in srgb, var(--seatd-danger) 38%, transparent);
+}
+
 .device-list {
   display: grid;
   gap: 14px;
@@ -2009,6 +2063,11 @@ html[data-reveal-ready="true"] [data-reveal][data-visible="true"],
   .device-card,
   .integrations-layout,
   .integration-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .table-draft-row,
+  .staff-draft-row {
     grid-template-columns: 1fr;
   }
 

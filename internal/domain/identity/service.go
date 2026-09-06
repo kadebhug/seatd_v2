@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -52,6 +53,7 @@ var (
 	ErrNotFound       = errors.New("not found")
 	ErrUnauthorized   = errors.New("unauthorized")
 	ErrForbidden      = errors.New("forbidden")
+	ErrAlreadyExists  = errors.New("already exists")
 	ErrAlreadyRevoked = errors.New("already revoked")
 	ErrValidation     = errors.New("validation failed")
 )
@@ -127,6 +129,65 @@ type WebSession struct {
 	RotatedFromSessionID uuid.NullUUID
 }
 
+type OnboardOwnerParams struct {
+	UserProfileID    uuid.UUID
+	OrganisationName string
+	OrganisationSlug string
+	LocationName     string
+	LocationSlug     string
+	Timezone         string
+	Floor            OnboardingFloor
+	ServicePeriods   []OnboardingServicePeriod
+	Staff            []OnboardingStaffMember
+}
+
+type OnboardingFloor struct {
+	Name      string
+	Slug      string
+	Canvas    json.RawMessage
+	Zones     []OnboardingZone
+	Tables    []OnboardingTable
+	SortOrder int32
+}
+
+type OnboardingZone struct {
+	Name      string
+	SortOrder int32
+}
+
+type OnboardingTable struct {
+	Label         string
+	CapacityLabel string
+	Shape         string
+	Geometry      json.RawMessage
+	ZoneName      string
+}
+
+type OnboardingServicePeriod struct {
+	Name       string
+	DaysOfWeek []int16
+	StartTime  string
+	EndTime    string
+}
+
+type OnboardingStaffMember struct {
+	Email      string
+	Name       string
+	Role       string
+	LocationID uuid.UUID
+}
+
+type OnboardOwnerResult struct {
+	Organisation   db.Organisation
+	Location       db.Location
+	Floor          *db.Floor
+	Zones          []db.Zone
+	Tables         []db.Table
+	ServicePeriods []db.ServicePeriod
+	Staff          []OnboardingStaffMember
+	WebSession     WebSession
+}
+
 type ResolveExternalIdentityParams struct {
 	DisplayName string
 	Email       string
@@ -182,6 +243,89 @@ func (s *Service) ResolveExternalIdentity(ctx context.Context, arg ResolveExtern
 		result = UserProfileResult{User: created, External: external}
 		return nil
 	})
+	return result, err
+}
+
+func (s *Service) OnboardOwner(ctx context.Context, arg OnboardOwnerParams) (OnboardOwnerResult, error) {
+	arg, err := normalizeOnboardOwnerParams(arg)
+	if err != nil {
+		return OnboardOwnerResult{}, err
+	}
+	if err := validateOnboardOwnerParams(arg); err != nil {
+		return OnboardOwnerResult{}, err
+	}
+
+	var result OnboardOwnerResult
+	err = s.inAdminTx(ctx, func(q *db.Queries) error {
+		existingOrgs, err := q.ListUserOrganisationMemberships(ctx, nullableUUID(arg.UserProfileID))
+		if err != nil {
+			return fmt.Errorf("listing existing organisation memberships: %w", err)
+		}
+		existingLocations, err := q.ListUserLocationMemberships(ctx, nullableUUID(arg.UserProfileID))
+		if err != nil {
+			return fmt.Errorf("listing existing location memberships: %w", err)
+		}
+		if len(existingOrgs) > 0 || len(existingLocations) > 0 {
+			return ErrAlreadyExists
+		}
+
+		org, err := q.CreateOrganisation(ctx, db.CreateOrganisationParams{
+			Slug: arg.OrganisationSlug,
+			Name: arg.OrganisationName,
+		})
+		if err != nil {
+			return fmt.Errorf("creating organisation: %w", err)
+		}
+		location, err := q.CreateLocation(ctx, db.CreateLocationParams{
+			OrganisationID: org.ID,
+			Slug:           arg.LocationSlug,
+			Name:           arg.LocationName,
+			Timezone:       arg.Timezone,
+		})
+		if err != nil {
+			return fmt.Errorf("creating location: %w", err)
+		}
+		memberRef := userProfileActorRef(arg.UserProfileID)
+		if _, err := q.CreateUserOrganisationMembership(ctx, db.CreateUserOrganisationMembershipParams{
+			OrganisationID: org.ID,
+			UserProfileID:  nullableUUID(arg.UserProfileID),
+			MemberRef:      memberRef,
+			Role:           RoleOrganisationOwner,
+		}); err != nil {
+			return fmt.Errorf("creating owner membership: %w", err)
+		}
+
+		floor, zones, tables, err := createOnboardingLayout(ctx, q, org.ID, location.ID, arg.Floor)
+		if err != nil {
+			return err
+		}
+		periods, err := createOnboardingServicePeriods(ctx, q, org.ID, location.ID, arg.ServicePeriods)
+		if err != nil {
+			return err
+		}
+
+		result = OnboardOwnerResult{
+			Organisation:   org,
+			Location:       location,
+			Floor:          floor,
+			Zones:          zones,
+			Tables:         tables,
+			ServicePeriods: periods,
+			Staff:          arg.Staff,
+			WebSession: WebSession{
+				User: db.UserProfile{ID: arg.UserProfileID},
+				Memberships: []Membership{{
+					OrganisationID: org.ID,
+					MemberRef:      memberRef,
+					Role:           RoleOrganisationOwner,
+				}},
+			},
+		}
+		return nil
+	})
+	if mapped := mapIdentityConstraintError(err); mapped != nil {
+		return OnboardOwnerResult{}, mapped
+	}
 	return result, err
 }
 
@@ -986,4 +1130,283 @@ func defaultJSONObject(value json.RawMessage) json.RawMessage {
 func jsonObject(value json.RawMessage) bool {
 	var decoded map[string]any
 	return json.Unmarshal(value, &decoded) == nil
+}
+
+func normalizeOnboardOwnerParams(arg OnboardOwnerParams) (OnboardOwnerParams, error) {
+	arg.OrganisationName = strings.TrimSpace(arg.OrganisationName)
+	arg.OrganisationSlug = strings.TrimSpace(arg.OrganisationSlug)
+	arg.LocationName = strings.TrimSpace(arg.LocationName)
+	arg.LocationSlug = strings.TrimSpace(arg.LocationSlug)
+	arg.Timezone = strings.TrimSpace(arg.Timezone)
+	if arg.Timezone == "" {
+		arg.Timezone = "UTC"
+	}
+	arg.Floor.Name = strings.TrimSpace(arg.Floor.Name)
+	if arg.Floor.Name == "" {
+		arg.Floor.Name = "Main floor"
+	}
+	arg.Floor.Slug = strings.TrimSpace(arg.Floor.Slug)
+	if arg.Floor.Slug == "" {
+		arg.Floor.Slug = "main-floor"
+	}
+	arg.Floor.Canvas = defaultJSONObject(arg.Floor.Canvas)
+	if len(arg.Floor.Zones) == 0 {
+		arg.Floor.Zones = []OnboardingZone{{Name: "Dining room"}}
+	}
+	for i := range arg.Floor.Zones {
+		arg.Floor.Zones[i].Name = strings.TrimSpace(arg.Floor.Zones[i].Name)
+	}
+	for i := range arg.Floor.Tables {
+		arg.Floor.Tables[i].Label = strings.TrimSpace(arg.Floor.Tables[i].Label)
+		arg.Floor.Tables[i].CapacityLabel = strings.TrimSpace(arg.Floor.Tables[i].CapacityLabel)
+		arg.Floor.Tables[i].Shape = strings.TrimSpace(arg.Floor.Tables[i].Shape)
+		arg.Floor.Tables[i].ZoneName = strings.TrimSpace(arg.Floor.Tables[i].ZoneName)
+		if arg.Floor.Tables[i].Shape == "" {
+			arg.Floor.Tables[i].Shape = "rectangle"
+		}
+		if arg.Floor.Tables[i].CapacityLabel == "" {
+			arg.Floor.Tables[i].CapacityLabel = "2-4"
+		}
+	}
+	for i := range arg.ServicePeriods {
+		arg.ServicePeriods[i].Name = strings.TrimSpace(arg.ServicePeriods[i].Name)
+		arg.ServicePeriods[i].StartTime = strings.TrimSpace(arg.ServicePeriods[i].StartTime)
+		arg.ServicePeriods[i].EndTime = strings.TrimSpace(arg.ServicePeriods[i].EndTime)
+	}
+	for i := range arg.Staff {
+		arg.Staff[i].Email = strings.TrimSpace(arg.Staff[i].Email)
+		arg.Staff[i].Name = strings.TrimSpace(arg.Staff[i].Name)
+		arg.Staff[i].Role = strings.TrimSpace(arg.Staff[i].Role)
+	}
+	return arg, nil
+}
+
+func validateOnboardOwnerParams(arg OnboardOwnerParams) error {
+	if arg.UserProfileID == uuid.Nil ||
+		arg.OrganisationName == "" ||
+		arg.LocationName == "" ||
+		!validSlug(arg.OrganisationSlug) ||
+		!validSlug(arg.LocationSlug) ||
+		!validSlug(arg.Floor.Slug) ||
+		!jsonObject(arg.Floor.Canvas) {
+		return ErrValidation
+	}
+	if _, err := time.LoadLocation(arg.Timezone); err != nil {
+		return ErrValidation
+	}
+	zoneNames := map[string]bool{}
+	for _, zone := range arg.Floor.Zones {
+		if zone.Name == "" || zoneNames[zone.Name] {
+			return ErrValidation
+		}
+		zoneNames[zone.Name] = true
+	}
+	for _, table := range arg.Floor.Tables {
+		if table.Label == "" ||
+			table.CapacityLabel == "" ||
+			!validTableShape(table.Shape) ||
+			!jsonObject(table.Geometry) {
+			return ErrValidation
+		}
+		if table.ZoneName != "" && !zoneNames[table.ZoneName] {
+			return ErrValidation
+		}
+	}
+	for _, period := range arg.ServicePeriods {
+		if _, _, _, _, err := parseOnboardingServicePeriod(period); err != nil {
+			return err
+		}
+	}
+	for _, staff := range arg.Staff {
+		if staff.Email == "" && staff.Name == "" {
+			return ErrValidation
+		}
+		if staff.Role != "" && !validStaffRole(staff.Role) {
+			return ErrValidation
+		}
+	}
+	return nil
+}
+
+func createOnboardingLayout(
+	ctx context.Context,
+	q *db.Queries,
+	organisationID uuid.UUID,
+	locationID uuid.UUID,
+	floorInput OnboardingFloor,
+) (*db.Floor, []db.Zone, []db.Table, error) {
+	floor, err := q.CreateFloor(ctx, db.CreateFloorParams{
+		OrganisationID: organisationID,
+		LocationID:     locationID,
+		Slug:           floorInput.Slug,
+		Name:           floorInput.Name,
+		SortOrder:      floorInput.SortOrder,
+		Canvas:         floorInput.Canvas,
+	})
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("creating onboarding floor: %w", err)
+	}
+	zones := make([]db.Zone, 0, len(floorInput.Zones))
+	zoneByName := map[string]db.Zone{}
+	for _, zoneInput := range floorInput.Zones {
+		zone, err := q.CreateZone(ctx, db.CreateZoneParams{
+			OrganisationID: organisationID,
+			LocationID:     locationID,
+			FloorID:        floor.ID,
+			Name:           zoneInput.Name,
+			SortOrder:      zoneInput.SortOrder,
+		})
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("creating onboarding zone: %w", err)
+		}
+		zones = append(zones, zone)
+		zoneByName[zone.Name] = zone
+	}
+	tables := make([]db.Table, 0, len(floorInput.Tables))
+	defaultZone := zones[0]
+	for _, tableInput := range floorInput.Tables {
+		zone := defaultZone
+		if tableInput.ZoneName != "" {
+			zone = zoneByName[tableInput.ZoneName]
+		}
+		table, err := q.CreateTable(ctx, db.CreateTableParams{
+			OrganisationID: organisationID,
+			LocationID:     locationID,
+			FloorID:        floor.ID,
+			ZoneID:         zone.ID,
+			Label:          tableInput.Label,
+			CapacityLabel:  tableInput.CapacityLabel,
+			Shape:          tableInput.Shape,
+			Geometry:       tableInput.Geometry,
+		})
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("creating onboarding table: %w", err)
+		}
+		if _, err := q.CreateTableOccupancy(ctx, db.CreateTableOccupancyParams{
+			TableID:        table.ID,
+			OrganisationID: organisationID,
+			LocationID:     locationID,
+		}); err != nil {
+			return nil, nil, nil, fmt.Errorf("creating onboarding table occupancy: %w", err)
+		}
+		tables = append(tables, table)
+	}
+	return &floor, zones, tables, nil
+}
+
+func createOnboardingServicePeriods(
+	ctx context.Context,
+	q *db.Queries,
+	organisationID uuid.UUID,
+	locationID uuid.UUID,
+	inputs []OnboardingServicePeriod,
+) ([]db.ServicePeriod, error) {
+	periods := make([]db.ServicePeriod, 0, len(inputs))
+	for _, input := range inputs {
+		name, days, start, end, err := parseOnboardingServicePeriod(input)
+		if err != nil {
+			return nil, err
+		}
+		period, err := q.CreateServicePeriod(ctx, db.CreateServicePeriodParams{
+			OrganisationID: organisationID,
+			LocationID:     locationID,
+			Name:           name,
+			DaysOfWeek:     days,
+			StartTime:      start,
+			EndTime:        end,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("creating onboarding service period: %w", err)
+		}
+		periods = append(periods, period)
+	}
+	return periods, nil
+}
+
+func parseOnboardingServicePeriod(input OnboardingServicePeriod) (string, []int16, pgtype.Time, pgtype.Time, error) {
+	name := strings.TrimSpace(input.Name)
+	if name == "" || len(input.DaysOfWeek) == 0 || len(input.DaysOfWeek) > 7 {
+		return "", nil, pgtype.Time{}, pgtype.Time{}, ErrValidation
+	}
+	seen := map[int16]bool{}
+	days := make([]int16, 0, len(input.DaysOfWeek))
+	for _, day := range input.DaysOfWeek {
+		if day < 0 || day > 6 || seen[day] {
+			return "", nil, pgtype.Time{}, pgtype.Time{}, ErrValidation
+		}
+		seen[day] = true
+		days = append(days, day)
+	}
+	start, err := parseOnboardingClock(input.StartTime)
+	if err != nil {
+		return "", nil, pgtype.Time{}, pgtype.Time{}, ErrValidation
+	}
+	end, err := parseOnboardingClock(input.EndTime)
+	if err != nil {
+		return "", nil, pgtype.Time{}, pgtype.Time{}, ErrValidation
+	}
+	return name, days, start, end, nil
+}
+
+func parseOnboardingClock(value string) (pgtype.Time, error) {
+	parsed, err := time.Parse("15:04", strings.TrimSpace(value))
+	if err != nil {
+		parsed, err = time.Parse("15:04:05", strings.TrimSpace(value))
+	}
+	if err != nil {
+		return pgtype.Time{}, err
+	}
+	micros := int64(parsed.Hour()) * int64(time.Hour/time.Microsecond)
+	micros += int64(parsed.Minute()) * int64(time.Minute/time.Microsecond)
+	micros += int64(parsed.Second()) * int64(time.Second/time.Microsecond)
+	return pgtype.Time{Microseconds: micros, Valid: true}, nil
+}
+
+func validSlug(value string) bool {
+	if value == "" {
+		return false
+	}
+	for _, r := range value {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func validTableShape(value string) bool {
+	switch value {
+	case "rectangle", "circle", "square", "custom":
+		return true
+	default:
+		return false
+	}
+}
+
+func validStaffRole(value string) bool {
+	switch value {
+	case RoleLocationManager, RoleWaiter, RoleReadOnly:
+		return true
+	default:
+		return false
+	}
+}
+
+func userProfileActorRef(id uuid.UUID) string {
+	if id == uuid.Nil {
+		return "user:"
+	}
+	return "user:" + id.String()
+}
+
+func mapIdentityConstraintError(err error) error {
+	if err == nil {
+		return nil
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+		return ErrAlreadyExists
+	}
+	return err
 }

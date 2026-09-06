@@ -5,6 +5,7 @@ import {
   canAccessOwner,
   canAccessPlatform,
   getSession,
+  needsOwnerOnboarding,
 } from "../../lib/session";
 
 const ownerNav = [
@@ -20,11 +21,13 @@ export default async function OwnerLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   const session = await getSession();
-  if (!canAccessOwner(session)) {
+  if (!canAccessOwner(session) && !needsOwnerOnboarding(session)) {
     redirect("/");
   }
 
-  const navItems = [...ownerNav];
+  const navItems = needsOwnerOnboarding(session)
+    ? [{ href: "/owner/onboarding", label: "Onboarding" }]
+    : [...ownerNav];
   if (canAccessPlatform(session)) {
     navItems.push({ href: "/platform", label: "Platform" });
   }

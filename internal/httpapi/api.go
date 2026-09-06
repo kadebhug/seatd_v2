@@ -89,6 +89,7 @@ func NewHandler(cfg app.Config, logger *slog.Logger, pool *pgxpool.Pool, metrics
 	mux.HandleFunc("GET /v1/auth/session", api.getWebSession)
 	mux.HandleFunc("POST /v1/auth/session/rotate", api.rotateWebSession)
 	mux.HandleFunc("POST /v1/auth/session/logout", api.logoutWebSession)
+	mux.HandleFunc("POST /v1/onboarding/owner", api.onboardOwner)
 	mux.HandleFunc("GET /v1/platform/tenants", api.searchPlatformTenants)
 	mux.HandleFunc("GET /v1/platform/tenants/{id}", api.getPlatformTenant)
 	mux.HandleFunc("GET /v1/platform/tenants/{id}/diagnostics", api.getPlatformTenantDiagnostics)
@@ -400,6 +401,17 @@ type layoutEditorSnapshotDTO struct {
 	Tables []tableStateDTO `json:"tables"`
 }
 
+type ownerOnboardingResponse struct {
+	Organisation   organisationDTO           `json:"organisation"`
+	Location       locationDTO               `json:"location"`
+	Floor          *floorDTO                 `json:"floor,omitempty"`
+	Zones          []zoneDTO                 `json:"zones"`
+	Tables         []tableDTO                `json:"tables"`
+	ServicePeriods []servicePeriodDTO        `json:"servicePeriods"`
+	Staff          []ownerOnboardingStaffDTO `json:"staff"`
+	Session        webSessionDTO             `json:"session"`
+}
+
 type displaySnapshotDTO struct {
 	OrganisationID string          `json:"organisationId"`
 	LocationID     string          `json:"locationId"`
@@ -495,6 +507,52 @@ type servicePeriodRequest struct {
 	ExpectedVersion int32   `json:"expectedVersion"`
 }
 
+type ownerOnboardingRequest struct {
+	OrganisationName string                            `json:"organisationName"`
+	OrganisationSlug string                            `json:"organisationSlug"`
+	LocationName     string                            `json:"locationName"`
+	LocationSlug     string                            `json:"locationSlug"`
+	Timezone         string                            `json:"timezone"`
+	Floor            ownerOnboardingFloorRequest       `json:"floor"`
+	ServicePeriods   []ownerOnboardingServicePeriodDTO `json:"servicePeriods"`
+	Staff            []ownerOnboardingStaffDTO         `json:"staff"`
+}
+
+type ownerOnboardingFloorRequest struct {
+	Name      string                        `json:"name"`
+	Slug      string                        `json:"slug"`
+	Canvas    json.RawMessage               `json:"canvas"`
+	Zones     []ownerOnboardingZoneRequest  `json:"zones"`
+	Tables    []ownerOnboardingTableRequest `json:"tables"`
+	SortOrder int32                         `json:"sortOrder"`
+}
+
+type ownerOnboardingZoneRequest struct {
+	Name      string `json:"name"`
+	SortOrder int32  `json:"sortOrder"`
+}
+
+type ownerOnboardingTableRequest struct {
+	Label         string          `json:"label"`
+	CapacityLabel string          `json:"capacityLabel"`
+	Shape         string          `json:"shape"`
+	Geometry      json.RawMessage `json:"geometry"`
+	ZoneName      string          `json:"zoneName"`
+}
+
+type ownerOnboardingServicePeriodDTO struct {
+	Name       string  `json:"name"`
+	DaysOfWeek []int16 `json:"daysOfWeek"`
+	StartTime  string  `json:"startTime"`
+	EndTime    string  `json:"endTime"`
+}
+
+type ownerOnboardingStaffDTO struct {
+	Email string `json:"email"`
+	Name  string `json:"name"`
+	Role  string `json:"role"`
+}
+
 type analyticsRebuildRequest struct {
 	LocationID string `json:"locationId"`
 	From       string `json:"from"`
@@ -525,6 +583,33 @@ func (api *API) getOrganisation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, organisationFromDB(org))
+}
+
+func (api *API) onboardOwner(w http.ResponseWriter, r *http.Request) {
+	secret, ok := bearerCredential(w, r)
+	if !ok {
+		return
+	}
+	session, err := api.ident.ValidateWebSession(r.Context(), secret)
+	if err != nil {
+		api.writeIdentityError(w, err)
+		return
+	}
+	var req ownerOnboardingRequest
+	if !decodeJSONBody(w, r, &req) {
+		return
+	}
+	result, err := api.ident.OnboardOwner(r.Context(), ownerOnboardingParams(session, req))
+	if err != nil {
+		api.writeIdentityError(w, err)
+		return
+	}
+	refreshed, err := api.ident.ValidateWebSession(r.Context(), secret)
+	if err != nil {
+		api.writeIdentityError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, ownerOnboardingResponseFromDomain(r, api, result, refreshed))
 }
 
 func (api *API) getOwnerSnapshot(w http.ResponseWriter, r *http.Request) {
@@ -2038,6 +2123,8 @@ func (api *API) writeIdentityError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusForbidden, "forbidden", "permission denied", nil)
 	case errors.Is(err, identity.ErrValidation):
 		writeError(w, http.StatusBadRequest, "validation_failed", "request validation failed", nil)
+	case errors.Is(err, identity.ErrAlreadyExists):
+		writeError(w, http.StatusConflict, "already_exists", "resource already exists", nil)
 	case errors.Is(err, identity.ErrAlreadyRevoked):
 		writeError(w, http.StatusConflict, "already_revoked", "device is already revoked", nil)
 	case errors.Is(err, identity.ErrNotFound):
@@ -2214,6 +2301,99 @@ func servicePeriodInput(req servicePeriodRequest) analytics.ServicePeriodInput {
 		StartTime:       req.StartTime,
 		EndTime:         req.EndTime,
 		ExpectedVersion: req.ExpectedVersion,
+	}
+}
+
+func ownerOnboardingParams(session identity.WebSession, req ownerOnboardingRequest) identity.OnboardOwnerParams {
+	zones := make([]identity.OnboardingZone, 0, len(req.Floor.Zones))
+	for _, zone := range req.Floor.Zones {
+		zones = append(zones, identity.OnboardingZone{
+			Name:      zone.Name,
+			SortOrder: zone.SortOrder,
+		})
+	}
+	tables := make([]identity.OnboardingTable, 0, len(req.Floor.Tables))
+	for _, table := range req.Floor.Tables {
+		tables = append(tables, identity.OnboardingTable{
+			Label:         table.Label,
+			CapacityLabel: table.CapacityLabel,
+			Shape:         table.Shape,
+			Geometry:      table.Geometry,
+			ZoneName:      table.ZoneName,
+		})
+	}
+	periods := make([]identity.OnboardingServicePeriod, 0, len(req.ServicePeriods))
+	for _, period := range req.ServicePeriods {
+		periods = append(periods, identity.OnboardingServicePeriod{
+			Name:       period.Name,
+			DaysOfWeek: period.DaysOfWeek,
+			StartTime:  period.StartTime,
+			EndTime:    period.EndTime,
+		})
+	}
+	staff := make([]identity.OnboardingStaffMember, 0, len(req.Staff))
+	for _, item := range req.Staff {
+		staff = append(staff, identity.OnboardingStaffMember{
+			Email: item.Email,
+			Name:  item.Name,
+			Role:  item.Role,
+		})
+	}
+	return identity.OnboardOwnerParams{
+		UserProfileID:    session.User.ID,
+		OrganisationName: req.OrganisationName,
+		OrganisationSlug: req.OrganisationSlug,
+		LocationName:     req.LocationName,
+		LocationSlug:     req.LocationSlug,
+		Timezone:         req.Timezone,
+		Floor: identity.OnboardingFloor{
+			Name:      req.Floor.Name,
+			Slug:      req.Floor.Slug,
+			Canvas:    req.Floor.Canvas,
+			Zones:     zones,
+			Tables:    tables,
+			SortOrder: req.Floor.SortOrder,
+		},
+		ServicePeriods: periods,
+		Staff:          staff,
+	}
+}
+
+func ownerOnboardingResponseFromDomain(r *http.Request, api *API, result identity.OnboardOwnerResult, session identity.WebSession) ownerOnboardingResponse {
+	var floor *floorDTO
+	if result.Floor != nil {
+		dto := floorFromDB(*result.Floor)
+		floor = &dto
+	}
+	zones := make([]zoneDTO, 0, len(result.Zones))
+	for _, zone := range result.Zones {
+		zones = append(zones, zoneFromDB(zone))
+	}
+	tables := make([]tableDTO, 0, len(result.Tables))
+	for _, table := range result.Tables {
+		tables = append(tables, tableFromDB(table))
+	}
+	periods := make([]servicePeriodDTO, 0, len(result.ServicePeriods))
+	for _, period := range result.ServicePeriods {
+		periods = append(periods, servicePeriodFromDB(period))
+	}
+	staff := make([]ownerOnboardingStaffDTO, 0, len(result.Staff))
+	for _, item := range result.Staff {
+		staff = append(staff, ownerOnboardingStaffDTO{
+			Email: item.Email,
+			Name:  item.Name,
+			Role:  item.Role,
+		})
+	}
+	return ownerOnboardingResponse{
+		Organisation:   organisationFromDB(result.Organisation),
+		Location:       locationFromDB(result.Location),
+		Floor:          floor,
+		Zones:          zones,
+		Tables:         tables,
+		ServicePeriods: periods,
+		Staff:          staff,
+		Session:        api.webSessionDTO(r, session),
 	}
 }
 

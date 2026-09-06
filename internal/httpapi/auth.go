@@ -265,8 +265,11 @@ func (api *API) authorizeInternalRequest(w http.ResponseWriter, r *http.Request)
 }
 
 func (api *API) writeWebSession(w http.ResponseWriter, r *http.Request, status int, session identity.WebSession) {
-	locations := api.locationsForSession(r, session)
-	writeJSON(w, status, webSessionResponse{Session: webSessionDTO{
+	writeJSON(w, status, webSessionResponse{Session: api.webSessionDTO(r, session)})
+}
+
+func (api *API) webSessionDTO(r *http.Request, session identity.WebSession) webSessionDTO {
+	return webSessionDTO{
 		SessionSecret: session.Secret,
 		ID:            session.Session.ID.String(),
 		UserProfileID: session.User.ID.String(),
@@ -276,8 +279,8 @@ func (api *API) writeWebSession(w http.ResponseWriter, r *http.Request, status i
 		IssuedAt:      timeString(session.Session.IssuedAt),
 		ExpiresAt:     timeString(session.Session.ExpiresAt),
 		Memberships:   membershipDTOs(session.Memberships),
-		Locations:     locations,
-	}})
+		Locations:     api.locationsForSession(r, session),
+	}
 }
 
 func (api *API) locationsForSession(r *http.Request, session identity.WebSession) []locationDTO {

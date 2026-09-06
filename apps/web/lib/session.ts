@@ -101,6 +101,15 @@ export function canAccessOwner(session: SeatdSession): boolean {
   );
 }
 
+export function needsOwnerOnboarding(session: SeatdSession): boolean {
+  return (
+    Boolean(session.sessionSecret) &&
+    session.organisationId === "" &&
+    session.locationId === "" &&
+    session.roles.length === 0
+  );
+}
+
 export function canAccessPlatform(session: SeatdSession): boolean {
   return session.roles.some((role) => role === "platform_admin");
 }

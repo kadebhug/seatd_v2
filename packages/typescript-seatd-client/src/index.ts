@@ -53,6 +53,7 @@ export const integrationDiscrepanciesEndpoint = "/v1/integrations/{id}/discrepan
 export const integrationReconcileEndpoint = "/v1/integrations/{id}/reconcile";
 export const integrationWebhookEndpoint = "/v1/integrations/{vendor}/webhooks";
 export const membershipsEndpoint = "/v1/memberships";
+export const ownerOnboardingEndpoint = "/v1/onboarding/owner";
 export const occupyTableEndpoint = "/v1/tables/{id}/occupy";
 export const clearTableEndpoint = "/v1/tables/{id}/clear";
 export const acknowledgeAssistEndpoint = "/v1/assists/{id}/acknowledge";
@@ -65,6 +66,7 @@ export type ErrorCode =
   | "validation_failed"
   | "unauthorized"
   | "forbidden"
+  | "already_exists"
   | "tenant_disabled"
   | "not_found"
   | "version_conflict"
@@ -368,6 +370,76 @@ export interface PairDeviceRequest {
 export interface PairDeviceResponse {
   device: Device;
   credential: string;
+}
+
+export interface OwnerOnboardingZoneRequest {
+  name: string;
+  sortOrder?: number;
+}
+
+export interface OwnerOnboardingTableRequest {
+  label: string;
+  capacityLabel?: string;
+  shape?: "rectangle" | "circle" | "square" | "custom";
+  geometry: Record<string, unknown>;
+  zoneName?: string;
+}
+
+export interface OwnerOnboardingFloorRequest {
+  name?: string;
+  slug?: string;
+  canvas?: Record<string, unknown>;
+  zones?: OwnerOnboardingZoneRequest[];
+  tables?: OwnerOnboardingTableRequest[];
+  sortOrder?: number;
+}
+
+export interface OwnerOnboardingServicePeriodRequest {
+  name: string;
+  daysOfWeek: number[];
+  startTime: string;
+  endTime: string;
+}
+
+export interface OwnerOnboardingStaff {
+  email?: string;
+  name?: string;
+  role?: "location_manager" | "waiter" | "read_only";
+}
+
+export interface OwnerOnboardingRequest {
+  organisationName: string;
+  organisationSlug: string;
+  locationName: string;
+  locationSlug: string;
+  timezone: string;
+  floor?: OwnerOnboardingFloorRequest;
+  servicePeriods?: OwnerOnboardingServicePeriodRequest[];
+  staff?: OwnerOnboardingStaff[];
+}
+
+export interface WebSession {
+  sessionSecret?: string;
+  id: string;
+  userProfileId: string;
+  actorRef: string;
+  displayName: string;
+  email?: string;
+  issuedAt: string;
+  expiresAt: string;
+  memberships: Membership[];
+  locations: Location[];
+}
+
+export interface OwnerOnboardingResponse {
+  organisation: Organisation;
+  location: Location;
+  floor?: Floor;
+  zones: Zone[];
+  tables: Table[];
+  servicePeriods: ServicePeriod[];
+  staff: OwnerOnboardingStaff[];
+  session: WebSession;
 }
 
 export interface DeviceHeartbeatRequest {
