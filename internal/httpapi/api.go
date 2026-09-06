@@ -25,6 +25,7 @@ import (
 	"github.com/kadebhug/seatd_v2/internal/domain/identity"
 	"github.com/kadebhug/seatd_v2/internal/domain/integrations"
 	"github.com/kadebhug/seatd_v2/internal/domain/operations"
+	"github.com/kadebhug/seatd_v2/internal/observability"
 	"github.com/kadebhug/seatd_v2/internal/store/db"
 )
 
@@ -56,9 +57,14 @@ type API struct {
 	analytics *analytics.Service
 	ints      *integrations.Service
 	guestRL   *guestRateLimiter
+	metrics   *observability.ServiceMetrics
 }
 
-func NewHandler(cfg app.Config, logger *slog.Logger, pool *pgxpool.Pool) http.Handler {
+func NewHandler(cfg app.Config, logger *slog.Logger, pool *pgxpool.Pool, metrics ...*observability.ServiceMetrics) http.Handler {
+	var serviceMetrics *observability.ServiceMetrics
+	if len(metrics) > 0 {
+		serviceMetrics = metrics[0]
+	}
 	opsService := operations.NewService(pool)
 	api := &API{
 		cfg:       cfg,
@@ -71,6 +77,7 @@ func NewHandler(cfg app.Config, logger *slog.Logger, pool *pgxpool.Pool) http.Ha
 		analytics: analytics.NewService(pool),
 		ints:      integrations.NewService(pool, opsService),
 		guestRL:   newGuestRateLimiter(time.Minute, 6),
+		metrics:   serviceMetrics,
 	}
 
 	mux := http.NewServeMux()
@@ -1319,8 +1326,14 @@ func (api *API) deviceHeartbeat(w http.ResponseWriter, r *http.Request) {
 		Capabilities: req.Capabilities,
 	})
 	if err != nil {
+		if api.metrics != nil {
+			api.metrics.ObserveDeviceHeartbeat("failure", "", "")
+		}
 		api.writeIdentityError(w, err)
 		return
+	}
+	if api.metrics != nil {
+		api.metrics.ObserveDeviceHeartbeat("success", device.DeviceType, device.Platform)
 	}
 	writeJSON(w, http.StatusOK, deviceFromDB(device))
 }

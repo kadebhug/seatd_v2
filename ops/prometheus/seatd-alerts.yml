@@ -1,0 +1,137 @@
+groups:
+  - name: seatd-http
+    rules:
+      - alert: SeatdHighHTTPErrorRate
+        expr: |
+          sum by (service) (rate(seatd_http_request_errors_total[5m]))
+            / clamp_min(sum by (service) (rate(seatd_http_requests_total[5m])), 1) > 0.05
+        for: 10m
+        labels:
+          severity: page
+        annotations:
+          summary: "Seatd {{ $labels.service }} has elevated HTTP 5xx errors"
+          description: "More than 5% of requests have returned 5xx for 10 minutes."
+      - alert: SeatdSlowHTTPP95
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (service, route, le) (rate(seatd_http_request_duration_seconds_bucket[5m]))
+          ) > 1
+        for: 15m
+        labels:
+          severity: ticket
+        annotations:
+          summary: "Seatd {{ $labels.service }} route {{ $labels.route }} is slow"
+          description: "P95 request latency is above 1 second for 15 minutes."
+
+  - name: seatd-database
+    rules:
+      - alert: SeatdDatabasePoolSaturated
+        expr: |
+          seatd_db_pool_acquired_conns
+            / clamp_min(seatd_db_pool_max_conns, 1) > 0.85
+        for: 10m
+        labels:
+          severity: page
+        annotations:
+          summary: "Seatd {{ $labels.service }} database pool is saturated"
+          description: "More than 85% of configured database connections are acquired."
+      - alert: SeatdDatabaseAcquireCanceled
+        expr: increase(seatd_db_pool_canceled_acquire_count[5m]) > 0
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: "Seatd {{ $labels.service }} database acquires are being canceled"
+          description: "Requests are timing out or being canceled while waiting for database connections."
+
+  - name: seatd-outbox
+    rules:
+      - alert: SeatdOutboxBacklog
+        expr: seatd_outbox_pending_records > 100
+        for: 15m
+        labels:
+          severity: page
+        annotations:
+          summary: "Seatd outbox backlog is growing"
+          description: "Pending outbox records have exceeded 100 for 15 minutes."
+      - alert: SeatdOutboxOldestPendingStale
+        expr: seatd_outbox_oldest_pending_age_seconds > 300
+        for: 10m
+        labels:
+          severity: page
+        annotations:
+          summary: "Seatd outbox has stale pending records"
+          description: "The oldest pending outbox record is older than 5 minutes."
+      - alert: SeatdOutboxPermanentFailures
+        expr: increase(seatd_outbox_records_failed_total[10m]) > 0
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: "Seatd outbox records are permanently failing"
+          description: "At least one outbox record exhausted retries in the last 10 minutes."
+
+  - name: seatd-realtime
+    rules:
+      - alert: SeatdRealtimeDrops
+        expr: increase(seatd_realtime_messages_dropped_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: "Seatd realtime messages are being dropped"
+          description: "Realtime clients are missing delivery because messages were dropped."
+      - alert: SeatdRealtimeBackpressureCloses
+        expr: increase(seatd_realtime_backpressure_closes_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: "Seatd realtime clients are being closed for backpressure"
+          description: "Realtime client send buffers are filling and connections are being closed."
+
+  - name: seatd-operations
+    rules:
+      - alert: SeatdGuestQRAbuseSpike
+        expr: sum(rate(seatd_guest_qr_abuse_events_total[5m])) > 1
+        for: 10m
+        labels:
+          severity: ticket
+        annotations:
+          summary: "Seatd guest QR abuse or rate limiting spiked"
+          description: "Guest QR denial, cooldown, or rate-limit decisions exceed 1 per second."
+      - alert: SeatdDeviceFleetStale
+        expr: seatd_devices_stale_total > 0
+        for: 10m
+        labels:
+          severity: page
+        annotations:
+          summary: "Seatd has stale trusted devices"
+          description: "One or more trusted display/device clients have missed their heartbeat freshness window."
+      - alert: SeatdDeviceFleetNeverHeartbeat
+        expr: seatd_devices_never_heartbeat_total > 0
+        for: 30m
+        labels:
+          severity: ticket
+        annotations:
+          summary: "Seatd has trusted devices that never heartbeated"
+          description: "One or more trusted devices have not sent any heartbeat."
+      - alert: SeatdIntegrationWebhookFailures
+        expr: |
+          increase(seatd_integration_webhooks_total{outcome=~"failed|replay_failed"}[10m]) > 0
+            or seatd_integration_webhooks_failed_total > 0
+        for: 10m
+        labels:
+          severity: page
+        annotations:
+          summary: "Seatd integration webhooks are failing"
+          description: "Integration webhook processing has failed recently or failed inbox rows are present."
+      - alert: SeatdIntegrationReconciliationDiscrepancies
+        expr: seatd_integration_reconciliation_discrepancies > 0 or seatd_integration_discrepancies_open_total > 0
+        for: 15m
+        labels:
+          severity: ticket
+        annotations:
+          summary: "Seatd integration reconciliation found discrepancies"
+          description: "Seatd and external integration state disagree and need review."

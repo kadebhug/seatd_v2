@@ -18,6 +18,8 @@ import (
 	"github.com/kadebhug/seatd_v2/internal/domain/events"
 	"github.com/kadebhug/seatd_v2/internal/domain/integrations"
 	"github.com/kadebhug/seatd_v2/internal/domain/operations"
+	"github.com/kadebhug/seatd_v2/internal/httpkit"
+	"github.com/kadebhug/seatd_v2/internal/observability"
 	"github.com/kadebhug/seatd_v2/internal/outbox"
 	"github.com/kadebhug/seatd_v2/internal/store"
 	"golang.org/x/sync/errgroup"
@@ -50,13 +52,21 @@ func main() {
 		os.Exit(1)
 	}
 	defer pool.Close()
+	metrics := observability.NewServiceMetrics(cfg, logger)
+	metrics.RegisterPGXPool(pool)
+	metrics.RegisterOperationalDB(pool)
 
 	outboxConfig, err := loadOutboxConfig()
 	if err != nil {
 		logger.ErrorContext(ctx, "outbox configuration invalid", "error", err)
 		os.Exit(1)
 	}
+	outboxConfig.Metrics = metrics.NewOutboxMetrics()
 	worker := outbox.NewWorker(pool, logger, consumers(pool, logger), outboxConfig)
+	metrics.RegisterOutboxStats(func(ctx context.Context) (int64, time.Duration, error) {
+		stats, err := worker.Stats(ctx)
+		return stats.PendingCount, stats.OldestPendingAge, err
+	})
 	integrationInterval, err := envDuration("SEATD_INTEGRATION_RECONCILE_INTERVAL", 5*time.Minute)
 	if err != nil {
 		logger.ErrorContext(ctx, "integration configuration invalid", "error", err)
@@ -69,7 +79,11 @@ func main() {
 		return worker.Run(groupCtx)
 	})
 	group.Go(func() error {
-		return runIntegrationReconciler(groupCtx, logger, integrationService, integrationInterval)
+		return runIntegrationReconciler(groupCtx, logger, integrationService, integrationInterval, metrics)
+	})
+	group.Go(func() error {
+		mux := httpkit.NewStatusMux(cfg, logger, metrics)
+		return httpkit.Run(groupCtx, cfg, logger, mux, metrics)
 	})
 	if err := group.Wait(); err != nil && !errors.Is(err, context.Canceled) {
 		logger.ErrorContext(ctx, "worker stopped with error", "error", err)
@@ -78,7 +92,7 @@ func main() {
 	logger.InfoContext(ctx, "worker stopped")
 }
 
-func runIntegrationReconciler(ctx context.Context, logger *slog.Logger, service *integrations.Service, interval time.Duration) error {
+func runIntegrationReconciler(ctx context.Context, logger *slog.Logger, service *integrations.Service, interval time.Duration, metrics *observability.ServiceMetrics) error {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
@@ -87,8 +101,14 @@ func runIntegrationReconciler(ctx context.Context, logger *slog.Logger, service 
 			if errors.Is(err, context.Canceled) {
 				return err
 			}
+			if metrics != nil {
+				metrics.ObserveIntegrationReconciliation("failed", "", 0)
+			}
 			logger.WarnContext(ctx, "integration reconciliation failed", "error", err)
 		} else if processed > 0 {
+			if metrics != nil {
+				metrics.ObserveIntegrationReconciliation("completed", "", 0)
+			}
 			logger.InfoContext(ctx, "integration reconciliation completed", "connections", processed)
 		}
 		select {

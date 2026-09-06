@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/kadebhug/seatd_v2/internal/app"
+	"github.com/kadebhug/seatd_v2/internal/observability"
 )
 
 type Status struct {
@@ -20,7 +21,7 @@ type Status struct {
 	Version     app.BuildInfo `json:"version"`
 }
 
-func NewStatusMux(cfg app.Config, logger *slog.Logger) *http.ServeMux {
+func NewStatusMux(cfg app.Config, logger *slog.Logger, metrics ...*observability.ServiceMetrics) *http.ServeMux {
 	mux := http.NewServeMux()
 	status := Status{
 		Service:     cfg.Name,
@@ -38,11 +39,17 @@ func NewStatusMux(cfg app.Config, logger *slog.Logger) *http.ServeMux {
 	mux.HandleFunc("GET /version", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(r.Context(), logger, w, cfg.Version)
 	})
+	if len(metrics) > 0 && metrics[0] != nil {
+		mux.Handle("GET /metrics", metrics[0].Handler())
+	}
 
 	return mux
 }
 
-func Run(ctx context.Context, cfg app.Config, logger *slog.Logger, handler http.Handler) error {
+func Run(ctx context.Context, cfg app.Config, logger *slog.Logger, handler http.Handler, metrics ...*observability.ServiceMetrics) error {
+	if len(metrics) > 0 && metrics[0] != nil {
+		handler = metrics[0].Middleware(handler)
+	}
 	server := &http.Server{
 		Addr:              cfg.Address,
 		Handler:           requestLogger(logger, handler),

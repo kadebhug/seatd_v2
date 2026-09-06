@@ -79,3 +79,30 @@ func TestWorkerTracksOwnedDestinations(t *testing.T) {
 		}
 	}
 }
+
+func TestWorkerRecordsClaimedMetric(t *testing.T) {
+	t.Parallel()
+
+	metrics := &fakeMetricsRecorder{}
+	worker := NewWorker(nil, slog.Default(), nil, Config{Metrics: metrics})
+	worker.recordClaimed(Record{Destination: "analytics.operations", Topic: "table.occupied"})
+
+	if metrics.claimedDestination != "analytics.operations" || metrics.claimedTopic != "table.occupied" {
+		t.Fatalf("claimed metric = %q/%q, want analytics.operations/table.occupied", metrics.claimedDestination, metrics.claimedTopic)
+	}
+}
+
+type fakeMetricsRecorder struct {
+	claimedDestination string
+	claimedTopic       string
+}
+
+func (r *fakeMetricsRecorder) RecordClaimed(destination, topic string) {
+	r.claimedDestination = destination
+	r.claimedTopic = topic
+}
+
+func (r *fakeMetricsRecorder) RecordProcessed(string, string) {}
+func (r *fakeMetricsRecorder) RecordRetried(string, string)   {}
+func (r *fakeMetricsRecorder) RecordFailed(string, string)    {}
+func (r *fakeMetricsRecorder) RecordConsumerFailed(string)    {}

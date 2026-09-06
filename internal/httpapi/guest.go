@@ -371,6 +371,9 @@ type guestAbuseScope struct {
 }
 
 func (api *API) recordGuestAbuse(r *http.Request, token string, actionKey string, scope guestAbuseScope, decision string) {
+	if api.metrics != nil {
+		api.metrics.ObserveGuestAbuse(decision)
+	}
 	if api.pool == nil {
 		return
 	}

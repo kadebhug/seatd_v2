@@ -10,6 +10,7 @@ import (
 	"github.com/kadebhug/seatd_v2/internal/app"
 	"github.com/kadebhug/seatd_v2/internal/httpapi"
 	"github.com/kadebhug/seatd_v2/internal/httpkit"
+	"github.com/kadebhug/seatd_v2/internal/observability"
 	"github.com/kadebhug/seatd_v2/internal/store"
 )
 
@@ -40,10 +41,13 @@ func main() {
 		os.Exit(1)
 	}
 	defer pool.Close()
+	metrics := observability.NewServiceMetrics(cfg, logger)
+	metrics.RegisterPGXPool(pool)
+	metrics.RegisterOperationalDB(pool)
 
-	mux := httpkit.NewStatusMux(cfg, logger)
-	mux.Handle("/v1/", httpapi.NewHandler(cfg, logger, pool))
-	if err := httpkit.Run(ctx, cfg, logger, mux); err != nil {
+	mux := httpkit.NewStatusMux(cfg, logger, metrics)
+	mux.Handle("/v1/", httpapi.NewHandler(cfg, logger, pool, metrics))
+	if err := httpkit.Run(ctx, cfg, logger, mux, metrics); err != nil {
 		logger.ErrorContext(ctx, "api stopped with error", "error", err)
 		os.Exit(1)
 	}

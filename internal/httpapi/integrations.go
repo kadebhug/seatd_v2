@@ -196,8 +196,14 @@ func (api *API) replayIntegrationWebhook(w http.ResponseWriter, r *http.Request)
 	}
 	result, err := api.ints.ReplayWebhook(r.Context(), integrationActor(ctx), webhookID)
 	if err != nil {
+		if api.metrics != nil {
+			api.metrics.ObserveIntegrationWebhook("", "replay_failed")
+		}
 		api.writeIntegrationError(w, err)
 		return
+	}
+	if api.metrics != nil {
+		api.metrics.ObserveIntegrationWebhook(result.Webhook.Vendor, "replay_"+result.Webhook.ProcessingState)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"webhook": integrationWebhookFromDomain(result.Webhook),
@@ -229,8 +235,14 @@ func (api *API) reconcileIntegration(w http.ResponseWriter, r *http.Request) {
 	}
 	run, err := api.ints.Reconcile(r.Context(), integrationActor(ctx), id)
 	if err != nil {
+		if api.metrics != nil {
+			api.metrics.ObserveIntegrationReconciliation("failed", id.String(), 0)
+		}
 		api.writeIntegrationError(w, err)
 		return
+	}
+	if api.metrics != nil {
+		api.metrics.ObserveIntegrationReconciliation(run.Status, run.ConnectionID.String(), run.DiscrepancyCount)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"reconciliationRun": integrationRunFromDomain(run)})
 }
@@ -255,8 +267,14 @@ func (api *API) receiveIntegrationWebhook(w http.ResponseWriter, r *http.Request
 		payload,
 	)
 	if err != nil {
+		if api.metrics != nil {
+			api.metrics.ObserveIntegrationWebhook(strings.TrimSpace(r.PathValue("vendor")), "failed")
+		}
 		api.writeIntegrationError(w, err)
 		return
+	}
+	if api.metrics != nil {
+		api.metrics.ObserveIntegrationWebhook(result.Webhook.Vendor, result.Webhook.ProcessingState)
 	}
 	writeJSON(w, http.StatusAccepted, map[string]any{
 		"webhook": integrationWebhookFromDomain(result.Webhook),

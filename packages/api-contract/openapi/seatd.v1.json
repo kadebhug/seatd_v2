@@ -49,6 +49,23 @@
         }
       }
     },
+    "/metrics": {
+      "get": {
+        "operationId": "getMetrics",
+        "responses": {
+          "200": {
+            "description": "Prometheus metrics",
+            "content": {
+              "text/plain; version=0.0.4": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/platform/tenants": {
       "get": {
         "operationId": "searchPlatformTenants",

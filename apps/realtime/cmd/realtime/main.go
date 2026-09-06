@@ -14,6 +14,7 @@ import (
 	"github.com/kadebhug/seatd_v2/internal/app"
 	"github.com/kadebhug/seatd_v2/internal/domain/events"
 	"github.com/kadebhug/seatd_v2/internal/httpkit"
+	"github.com/kadebhug/seatd_v2/internal/observability"
 	"github.com/kadebhug/seatd_v2/internal/outbox"
 	"github.com/kadebhug/seatd_v2/internal/realtime"
 	"github.com/kadebhug/seatd_v2/internal/store"
@@ -46,6 +47,9 @@ func main() {
 		os.Exit(1)
 	}
 	defer pool.Close()
+	metrics := observability.NewServiceMetrics(cfg, logger)
+	metrics.RegisterPGXPool(pool)
+	metrics.RegisterOperationalDB(pool)
 
 	wsConfig, err := loadRealtimeConfig()
 	if err != nil {
@@ -53,6 +57,7 @@ func main() {
 		os.Exit(1)
 	}
 	hub := realtime.NewHub(logger)
+	metrics.RegisterRealtimeHub(hub)
 	worker := outbox.NewWorker(pool, logger, map[string][]outbox.Consumer{
 		realtime.DestinationOperations: {
 			realtimeConsumer(hub),
@@ -62,6 +67,11 @@ func main() {
 		BatchSize:    50,
 		Concurrency:  4,
 		PollInterval: time.Second,
+		Metrics:      metrics.NewOutboxMetrics(),
+	})
+	metrics.RegisterOutboxStats(func(ctx context.Context) (int64, time.Duration, error) {
+		stats, err := worker.Stats(ctx)
+		return stats.PendingCount, stats.OldestPendingAge, err
 	})
 	go func() {
 		if err := worker.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
@@ -69,9 +79,9 @@ func main() {
 		}
 	}()
 
-	mux := httpkit.NewStatusMux(cfg, logger)
+	mux := httpkit.NewStatusMux(cfg, logger, metrics)
 	mux.Handle("/v1/", realtime.NewHandler(cfg, logger, pool, hub, wsConfig))
-	if err := httpkit.Run(ctx, cfg, logger, mux); err != nil {
+	if err := httpkit.Run(ctx, cfg, logger, mux, metrics); err != nil {
 		logger.ErrorContext(ctx, "realtime gateway stopped with error", "error", err)
 		os.Exit(1)
 	}

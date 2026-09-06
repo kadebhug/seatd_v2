@@ -46,6 +46,14 @@ type Consumer interface {
 	Handle(ctx context.Context, event events.Envelope) error
 }
 
+type MetricsRecorder interface {
+	RecordClaimed(destination, topic string)
+	RecordProcessed(destination, topic string)
+	RecordRetried(destination, topic string)
+	RecordFailed(destination, topic string)
+	RecordConsumerFailed(consumer string)
+}
+
 type ConsumerFunc struct {
 	ConsumerName string
 	Fn           func(context.Context, events.Envelope) error
@@ -75,6 +83,7 @@ type Worker struct {
 	backoffBase  time.Duration
 	backoffMax   time.Duration
 	claimTimeout time.Duration
+	metrics      MetricsRecorder
 }
 
 type Config struct {
@@ -86,6 +95,7 @@ type Config struct {
 	BackoffBase  time.Duration
 	BackoffMax   time.Duration
 	ClaimTimeout time.Duration
+	Metrics      MetricsRecorder
 }
 
 func NewWorker(pool *pgxpool.Pool, logger *slog.Logger, consumers map[string][]Consumer, cfg Config) *Worker {
@@ -133,6 +143,7 @@ func NewWorker(pool *pgxpool.Pool, logger *slog.Logger, consumers map[string][]C
 		backoffBase:  cfg.BackoffBase,
 		backoffMax:   cfg.BackoffMax,
 		claimTimeout: cfg.ClaimTimeout,
+		metrics:      cfg.Metrics,
 	}
 }
 
@@ -164,6 +175,9 @@ func (w *Worker) ProcessBatch(ctx context.Context) (int, error) {
 	records, err := w.claim(ctx)
 	if err != nil {
 		return 0, err
+	}
+	for _, record := range records {
+		w.recordClaimed(record)
 	}
 	group, groupCtx := errgroup.WithContext(ctx)
 	group.SetLimit(w.concurrency)
@@ -318,6 +332,9 @@ FOR UPDATE
 	}
 
 	if err := consumer.Handle(ctx, event); err != nil {
+		if w.metrics != nil {
+			w.metrics.RecordConsumerFailed(consumer.Name())
+		}
 		_ = w.markConsumerFailed(ctx, consumer.Name(), record.EventID, err)
 		return fmt.Errorf("consumer %s handling event %s: %w", consumer.Name(), record.EventID, err)
 	}
@@ -325,7 +342,7 @@ FOR UPDATE
 }
 
 func (w *Worker) markProcessed(ctx context.Context, record Record) error {
-	return w.adminExec(ctx, `
+	err := w.adminExec(ctx, `
 UPDATE outbox_records
 SET status = 'processed',
     processed_at = now(),
@@ -334,6 +351,10 @@ SET status = 'processed',
     updated_at = now()
 WHERE id = $1
 `, record.ID)
+	if err == nil && w.metrics != nil {
+		w.metrics.RecordProcessed(record.Destination, record.Topic)
+	}
+	return err
 }
 
 func (w *Worker) retryOrFail(ctx context.Context, record Record, cause error) error {
@@ -354,6 +375,9 @@ WHERE id = $1
 	if err != nil {
 		return fmt.Errorf("scheduling outbox retry: %w", err)
 	}
+	if w.metrics != nil {
+		w.metrics.RecordRetried(record.Destination, record.Topic)
+	}
 	return cause
 }
 
@@ -370,6 +394,9 @@ WHERE id = $1
 	if err != nil {
 		return fmt.Errorf("marking outbox record failed: %w", err)
 	}
+	if w.metrics != nil {
+		w.metrics.RecordFailed(record.Destination, record.Topic)
+	}
 	return cause
 }
 
@@ -385,6 +412,12 @@ WHERE consumer_name = $1 AND event_id = $2
 		return fmt.Errorf("marking consumer event processed: %w", err)
 	}
 	return nil
+}
+
+func (w *Worker) recordClaimed(record Record) {
+	if w.metrics != nil {
+		w.metrics.RecordClaimed(record.Destination, record.Topic)
+	}
 }
 
 func (w *Worker) markConsumerFailed(ctx context.Context, consumerName string, eventID uuid.UUID, cause error) error {
