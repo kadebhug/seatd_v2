@@ -15,6 +15,9 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/kadebhug/seatd_v2/internal/domain/events"
+	"github.com/kadebhug/seatd_v2/internal/observability"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/propagation"
 )
 
 const (
@@ -172,10 +175,16 @@ func (w *Worker) Run(ctx context.Context) error {
 }
 
 func (w *Worker) ProcessBatch(ctx context.Context) (int, error) {
+	ctx, span := observability.StartSpan(ctx, "outbox.process_batch",
+		attribute.String("seatd.outbox_instance_id", w.instanceID),
+	)
+	defer span.End()
 	records, err := w.claim(ctx)
 	if err != nil {
+		observability.RecordSpanError(span, err)
 		return 0, err
 	}
+	span.SetAttributes(attribute.Int("seatd.outbox_claimed", len(records)))
 	for _, record := range records {
 		w.recordClaimed(record)
 	}
@@ -188,6 +197,7 @@ func (w *Worker) ProcessBatch(ctx context.Context) (int, error) {
 		})
 	}
 	if err := group.Wait(); err != nil {
+		observability.RecordSpanError(span, err)
 		return len(records), err
 	}
 	return len(records), nil
@@ -211,11 +221,18 @@ WHERE status = 'pending'
 }
 
 func (w *Worker) claim(ctx context.Context) ([]Record, error) {
+	ctx, span := observability.StartSpan(ctx, "outbox.claim",
+		attribute.String("seatd.outbox_instance_id", w.instanceID),
+		attribute.Int64("seatd.outbox_claim_timeout_ms", w.claimTimeout.Milliseconds()),
+	)
+	defer span.End()
 	tx, err := w.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
+		observability.RecordSpanError(span, err)
 		return nil, fmt.Errorf("beginning outbox claim transaction: %w", err)
 	}
 	if _, err := tx.Exec(ctx, "SELECT set_config('seatd.platform_admin', 'true', true)"); err != nil {
+		observability.RecordSpanError(span, err)
 		return nil, rollback(tx, ctx, fmt.Errorf("setting worker database context: %w", err))
 	}
 	rows, err := tx.Query(ctx, `
@@ -252,6 +269,7 @@ WHERE o.id = claimed.id
 RETURNING o.id, o.organisation_id, o.location_id, o.event_id, o.destination, o.topic, o.payload, o.attempts, o.created_at
 `, w.batchSize, w.instanceID, w.claimTimeout.Milliseconds(), w.destinations)
 	if err != nil {
+		observability.RecordSpanError(span, err)
 		return nil, rollback(tx, ctx, fmt.Errorf("claiming outbox records: %w", err))
 	}
 	defer rows.Close()
@@ -260,14 +278,17 @@ RETURNING o.id, o.organisation_id, o.location_id, o.event_id, o.destination, o.t
 	for rows.Next() {
 		var record Record
 		if err := rows.Scan(&record.ID, &record.OrganisationID, &record.LocationID, &record.EventID, &record.Destination, &record.Topic, &record.Payload, &record.Attempts, &record.CreatedAt); err != nil {
+			observability.RecordSpanError(span, err)
 			return nil, rollback(tx, ctx, fmt.Errorf("scanning claimed outbox record: %w", err))
 		}
 		records = append(records, record)
 	}
 	if err := rows.Err(); err != nil {
+		observability.RecordSpanError(span, err)
 		return nil, rollback(tx, ctx, fmt.Errorf("iterating claimed outbox records: %w", err))
 	}
 	if err := tx.Commit(ctx); err != nil {
+		observability.RecordSpanError(span, err)
 		return nil, fmt.Errorf("committing outbox claim transaction: %w", err)
 	}
 	return records, nil
@@ -278,6 +299,19 @@ func (w *Worker) processRecord(ctx context.Context, record Record) error {
 	if err := json.Unmarshal(record.Payload, &event); err != nil {
 		return w.markFailed(ctx, record, fmt.Errorf("decoding event payload: %w", err))
 	}
+	carrier := propagation.MapCarrier{
+		"traceparent": event.Traceparent,
+		"tracestate":  event.Tracestate,
+	}
+	ctx = observability.ExtractTraceContext(ctx, carrier)
+	ctx, span := observability.StartSpan(ctx, "outbox.process_record",
+		attribute.String("seatd.outbox_record_id", record.ID.String()),
+		attribute.String("seatd.event_id", record.EventID.String()),
+		attribute.String("seatd.event_type", event.Type),
+		attribute.String("seatd.destination", record.Destination),
+		attribute.String("seatd.topic", record.Topic),
+	)
+	defer span.End()
 
 	consumers := w.consumerMap[record.Destination]
 	if len(consumers) == 0 {
@@ -285,18 +319,30 @@ func (w *Worker) processRecord(ctx context.Context, record Record) error {
 	}
 	for _, consumer := range consumers {
 		if err := w.handleConsumer(ctx, record, event, consumer); err != nil {
+			observability.RecordSpanError(span, err)
 			return w.retryOrFail(ctx, record, err)
 		}
 	}
-	return w.markProcessed(ctx, record)
+	err := w.markProcessed(ctx, record)
+	observability.RecordSpanError(span, err)
+	return err
 }
 
 func (w *Worker) handleConsumer(ctx context.Context, record Record, event events.Envelope, consumer Consumer) error {
+	ctx, span := observability.StartSpan(ctx, "outbox.handle_consumer",
+		attribute.String("seatd.outbox_record_id", record.ID.String()),
+		attribute.String("seatd.event_id", record.EventID.String()),
+		attribute.String("seatd.event_type", event.Type),
+		attribute.String("seatd.consumer", consumer.Name()),
+	)
+	defer span.End()
 	tx, err := w.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
+		observability.RecordSpanError(span, err)
 		return fmt.Errorf("beginning consumer idempotency transaction: %w", err)
 	}
 	if _, err := tx.Exec(ctx, "SELECT set_config('seatd.platform_admin', 'true', true)"); err != nil {
+		observability.RecordSpanError(span, err)
 		return rollback(tx, ctx, fmt.Errorf("setting consumer database context: %w", err))
 	}
 
@@ -307,6 +353,7 @@ VALUES ($1, $2, $3)
 ON CONFLICT (consumer_name, event_id) DO NOTHING
 RETURNING true
 `, consumer.Name(), record.EventID, record.ID).Scan(&inserted); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		observability.RecordSpanError(span, err)
 		return rollback(tx, ctx, fmt.Errorf("recording consumer idempotency start: %w", err))
 	}
 	if !inserted {
@@ -318,27 +365,34 @@ WHERE consumer_name = $1 AND event_id = $2
 FOR UPDATE
 `, consumer.Name(), record.EventID).Scan(&status)
 		if err != nil {
+			observability.RecordSpanError(span, err)
 			return rollback(tx, ctx, fmt.Errorf("reading consumer idempotency status: %w", err))
 		}
 		if status == StatusProcessed {
+			span.SetAttributes(attribute.Bool("seatd.consumer_replayed", true))
 			if err := tx.Commit(ctx); err != nil {
+				observability.RecordSpanError(span, err)
 				return fmt.Errorf("committing consumer idempotency skip: %w", err)
 			}
 			return nil
 		}
 	}
 	if err := tx.Commit(ctx); err != nil {
+		observability.RecordSpanError(span, err)
 		return fmt.Errorf("committing consumer idempotency start: %w", err)
 	}
 
 	if err := consumer.Handle(ctx, event); err != nil {
+		observability.RecordSpanError(span, err)
 		if w.metrics != nil {
 			w.metrics.RecordConsumerFailed(consumer.Name())
 		}
 		_ = w.markConsumerFailed(ctx, consumer.Name(), record.EventID, err)
 		return fmt.Errorf("consumer %s handling event %s: %w", consumer.Name(), record.EventID, err)
 	}
-	return w.markConsumerProcessed(ctx, consumer.Name(), record.EventID)
+	err = w.markConsumerProcessed(ctx, consumer.Name(), record.EventID)
+	observability.RecordSpanError(span, err)
+	return err
 }
 
 func (w *Worker) markProcessed(ctx context.Context, record Record) error {

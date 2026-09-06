@@ -36,6 +36,8 @@ type Envelope struct {
 	EntityVersion  *int32          `json:"entityVersion,omitempty"`
 	CommandID      *uuid.UUID      `json:"commandId,omitempty"`
 	CorrelationID  *uuid.UUID      `json:"correlationId,omitempty"`
+	Traceparent    string          `json:"traceparent,omitempty"`
+	Tracestate     string          `json:"tracestate,omitempty"`
 	Data           json.RawMessage `json:"data"`
 }
 

@@ -42,6 +42,18 @@ func main() {
 	}
 
 	logger := app.NewLogger(cfg)
+	shutdownTracing, err := observability.InitTracing(ctx, cfg, logger)
+	if err != nil {
+		logger.ErrorContext(ctx, "tracing configuration invalid", "error", err)
+		os.Exit(1)
+	}
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
+		defer cancel()
+		if err := shutdownTracing(shutdownCtx); err != nil {
+			logger.WarnContext(ctx, "tracing shutdown failed", "error", err)
+		}
+	}()
 	if cfg.DatabaseURL == "" {
 		logger.ErrorContext(ctx, "database url is required", "variable", "SEATD_DATABASE_URL")
 		os.Exit(1)
@@ -96,20 +108,27 @@ func runIntegrationReconciler(ctx context.Context, logger *slog.Logger, service 
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
-		processed, err := service.ReconcileConnected(ctx)
+		spanCtx, span := observability.StartSpan(ctx, "worker.integration_reconcile_tick")
+		processed, err := service.ReconcileConnected(spanCtx)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
+				span.End()
 				return err
 			}
+			observability.RecordSpanError(span, err)
+			span.End()
 			if metrics != nil {
 				metrics.ObserveIntegrationReconciliation("failed", "", 0)
 			}
 			logger.WarnContext(ctx, "integration reconciliation failed", "error", err)
 		} else if processed > 0 {
+			span.End()
 			if metrics != nil {
 				metrics.ObserveIntegrationReconciliation("completed", "", 0)
 			}
 			logger.InfoContext(ctx, "integration reconciliation completed", "connections", processed)
+		} else {
+			span.End()
 		}
 		select {
 		case <-ctx.Done():

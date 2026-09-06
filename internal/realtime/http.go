@@ -19,6 +19,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/kadebhug/seatd_v2/internal/app"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 const (
@@ -90,16 +91,25 @@ func NewHandler(cfg app.Config, logger *slog.Logger, pool *pgxpool.Pool, hub *Hu
 }
 
 func (h *Handler) serveWebSocket(w http.ResponseWriter, r *http.Request) {
+	ctx, span := startSpan(r.Context(), "realtime.websocket")
+	defer span.End()
+	r = r.WithContext(ctx)
 	req, ok := h.authorizeRequest(w, r)
 	if !ok {
 		return
 	}
+	span.SetAttributes(
+		attribute.String("seatd.organisation_id", req.OrganisationID.String()),
+		attribute.String("seatd.location_id", req.LocationID.String()),
+		attribute.String("seatd.device_id", req.DeviceID.String()),
+	)
 	if h.hub.MetricsSnapshot().ActiveConnections >= h.ws.ConnectionLimit {
 		writeError(w, http.StatusServiceUnavailable, "connection_limit", "realtime connection limit reached", nil)
 		return
 	}
 	conn, err := Upgrade(w, r, h.ws.ReadLimit)
 	if err != nil {
+		recordSpanError(span, err)
 		h.logger.WarnContext(r.Context(), "websocket upgrade failed", "error", err)
 		return
 	}
@@ -236,11 +246,19 @@ var (
 )
 
 func (h *Handler) authorize(ctx context.Context, req requestContext) error {
+	ctx, span := startSpan(ctx, "realtime.authorize",
+		attribute.String("seatd.organisation_id", req.OrganisationID.String()),
+		attribute.String("seatd.location_id", req.LocationID.String()),
+		attribute.String("seatd.device_id", req.DeviceID.String()),
+	)
+	defer span.End()
 	tx, err := h.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
+		recordSpanError(span, err)
 		return fmt.Errorf("beginning authorization transaction: %w", err)
 	}
 	if _, err := tx.Exec(ctx, "SELECT set_config('seatd.platform_admin', 'true', true)"); err != nil {
+		recordSpanError(span, err)
 		return rollback(tx, ctx, fmt.Errorf("setting authorization database context: %w", err))
 	}
 	var deviceOK bool
@@ -255,9 +273,11 @@ SELECT EXISTS (
       AND revoked_at IS NULL
 )`, req.DeviceID, req.OrganisationID, req.LocationID).Scan(&deviceOK)
 	if err != nil {
+		recordSpanError(span, err)
 		return rollback(tx, ctx, fmt.Errorf("checking realtime device authorization: %w", err))
 	}
 	if !deviceOK {
+		recordSpanError(span, errUnauthorized)
 		return rollback(tx, ctx, errUnauthorized)
 	}
 
@@ -282,9 +302,11 @@ SELECT EXISTS (
       AND rp.permission_name = 'operations.read'
 )`, req.OrganisationID, req.LocationID, req.ActorRef).Scan(&permissionOK)
 	if err != nil {
+		recordSpanError(span, err)
 		return rollback(tx, ctx, fmt.Errorf("checking realtime staff authorization: %w", err))
 	}
 	if !permissionOK {
+		recordSpanError(span, errForbidden)
 		return rollback(tx, ctx, errForbidden)
 	}
 	if _, err := tx.Exec(ctx, `
@@ -293,9 +315,11 @@ SET last_seen_at = now(),
     updated_at = now()
 WHERE id = $1 AND organisation_id = $2
 `, req.DeviceID, req.OrganisationID); err != nil {
+		recordSpanError(span, err)
 		return rollback(tx, ctx, fmt.Errorf("marking realtime device seen: %w", err))
 	}
 	if err := tx.Commit(ctx); err != nil {
+		recordSpanError(span, err)
 		return fmt.Errorf("committing authorization transaction: %w", err)
 	}
 	return nil

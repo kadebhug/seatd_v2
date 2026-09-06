@@ -14,7 +14,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/kadebhug/seatd_v2/internal/domain/events"
+	"github.com/kadebhug/seatd_v2/internal/observability"
 	"github.com/kadebhug/seatd_v2/internal/store/db"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/propagation"
 )
 
 const (
@@ -73,7 +76,14 @@ type CommandReplay struct {
 }
 
 func (s *Service) OccupyTable(ctx context.Context, arg OccupyTableParams) (OccupyTableResult, error) {
+	ctx, span := observability.StartSpan(ctx, "operations.occupy_table",
+		attribute.String("seatd.organisation_id", arg.OrganisationID.String()),
+		attribute.String("seatd.location_id", arg.LocationID.String()),
+		attribute.String("seatd.table_id", arg.TableID.String()),
+	)
+	defer span.End()
 	result, _, err := s.OccupyTableCommand(ctx, arg, nil)
+	observability.RecordSpanError(span, err)
 	return result, err
 }
 
@@ -123,7 +133,14 @@ type ClearTableResult struct {
 }
 
 func (s *Service) ClearTable(ctx context.Context, arg ClearTableParams) (ClearTableResult, error) {
+	ctx, span := observability.StartSpan(ctx, "operations.clear_table",
+		attribute.String("seatd.organisation_id", arg.OrganisationID.String()),
+		attribute.String("seatd.location_id", arg.LocationID.String()),
+		attribute.String("seatd.table_id", arg.TableID.String()),
+	)
+	defer span.End()
 	result, _, err := s.ClearTableCommand(ctx, arg, nil)
+	observability.RecordSpanError(span, err)
 	return result, err
 }
 
@@ -166,6 +183,12 @@ type RequestAssistParams struct {
 }
 
 func (s *Service) RequestAssist(ctx context.Context, arg RequestAssistParams) (db.AssistRequest, error) {
+	ctx, span := observability.StartSpan(ctx, "operations.request_assist",
+		attribute.String("seatd.organisation_id", arg.OrganisationID.String()),
+		attribute.String("seatd.location_id", arg.LocationID.String()),
+		attribute.String("seatd.table_id", arg.TableID.String()),
+	)
+	defer span.End()
 	var assist db.AssistRequest
 	err := s.inTenantTx(ctx, arg.OrganisationID, arg.LocationID, func(tx pgx.Tx, q *db.Queries) error {
 		occupancy, err := lockTableOccupancy(ctx, q, arg.TableID, arg.OrganisationID, arg.LocationID)
@@ -205,6 +228,7 @@ func (s *Service) RequestAssist(ctx context.Context, arg RequestAssistParams) (d
 			},
 		})
 	})
+	observability.RecordSpanError(span, err)
 	return assist, err
 }
 
@@ -263,7 +287,14 @@ func (s *Service) changeAssistCommand(
 	eventType string,
 	encode func(db.AssistRequest) (int32, []byte, error),
 ) (db.AssistRequest, CommandReplay, error) {
-	return runTenantCommand(ctx, s, arg.OrganisationID, arg.LocationID, arg.ActorRef, arg.Command, func(q *db.Queries) (db.AssistRequest, error) {
+	ctx, span := observability.StartSpan(ctx, "operations.change_assist",
+		attribute.String("seatd.organisation_id", arg.OrganisationID.String()),
+		attribute.String("seatd.location_id", arg.LocationID.String()),
+		attribute.String("seatd.assist_id", arg.AssistID.String()),
+		attribute.String("seatd.next_status", nextStatus),
+	)
+	defer span.End()
+	assist, replay, err := runTenantCommand(ctx, s, arg.OrganisationID, arg.LocationID, arg.ActorRef, arg.Command, func(q *db.Queries) (db.AssistRequest, error) {
 		return changeAssistInTx(ctx, q, arg, nextStatus)
 	}, func(tx pgx.Tx, assist db.AssistRequest) error {
 		return writeOperationalEvent(ctx, tx, operationalEvent{
@@ -285,6 +316,8 @@ func (s *Service) changeAssistCommand(
 			},
 		})
 	}, encode)
+	observability.RecordSpanError(span, err)
+	return assist, replay, err
 }
 
 func changeAssistInTx(ctx context.Context, q *db.Queries, arg ChangeAssistParams, nextStatus string) (db.AssistRequest, error) {
@@ -542,8 +575,15 @@ func runTenantCommand[T any](
 	encode func(T) (int32, []byte, error),
 ) (T, CommandReplay, error) {
 	var zero T
+	ctx, span := observability.StartSpan(ctx, "operations.tenant_command",
+		attribute.String("seatd.organisation_id", organisationID.String()),
+		attribute.String("seatd.location_id", locationID.String()),
+		attribute.String("seatd.command_type", meta.Type),
+	)
+	defer span.End()
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
+		observability.RecordSpanError(span, err)
 		return zero, CommandReplay{}, fmt.Errorf("beginning transaction: %w", err)
 	}
 
@@ -552,6 +592,7 @@ SELECT set_config('seatd.platform_admin', 'false', true),
        set_config('seatd.current_organisation_id', $1::text, true),
        set_config('seatd.current_location_id', $2::text, true)
 `, organisationID.String(), locationID.String()); err != nil {
+		observability.RecordSpanError(span, err)
 		return zero, CommandReplay{}, rollback(tx, ctx, fmt.Errorf("setting tenant context: %w", err))
 	}
 
@@ -559,10 +600,13 @@ SELECT set_config('seatd.platform_admin', 'false', true),
 	if meta.ID != uuid.Nil {
 		replay, found, err := getIdempotencyReplay(ctx, tx, organisationID, meta)
 		if err != nil {
+			observability.RecordSpanError(span, err)
 			return zero, CommandReplay{}, rollback(tx, ctx, err)
 		}
 		if found {
+			span.SetAttributes(attribute.Bool("seatd.command_replayed", true))
 			if err := tx.Commit(ctx); err != nil {
+				observability.RecordSpanError(span, err)
 				return zero, CommandReplay{}, fmt.Errorf("committing replay transaction: %w", err)
 			}
 			return zero, replay, nil
@@ -571,9 +615,11 @@ SELECT set_config('seatd.platform_admin', 'false', true),
 
 	value, err := execute(queries)
 	if err != nil {
+		observability.RecordSpanError(span, err)
 		return zero, CommandReplay{}, rollback(tx, ctx, err)
 	}
 	if err := after(tx, value); err != nil {
+		observability.RecordSpanError(span, err)
 		return zero, CommandReplay{}, rollback(tx, ctx, err)
 	}
 
@@ -582,6 +628,7 @@ SELECT set_config('seatd.platform_admin', 'false', true),
 	if encode != nil {
 		status, body, err = encode(value)
 		if err != nil {
+			observability.RecordSpanError(span, err)
 			return zero, CommandReplay{}, rollback(tx, ctx, fmt.Errorf("encoding idempotency response: %w", err))
 		}
 	}
@@ -590,11 +637,13 @@ SELECT set_config('seatd.platform_admin', 'false', true),
 			body = []byte(`{}`)
 		}
 		if err := insertIdempotencyRecord(ctx, tx, organisationID, locationID, actorRef, meta, status, body); err != nil {
+			observability.RecordSpanError(span, err)
 			return zero, CommandReplay{}, rollback(tx, ctx, err)
 		}
 	}
 
 	if err := tx.Commit(ctx); err != nil {
+		observability.RecordSpanError(span, err)
 		return zero, CommandReplay{}, fmt.Errorf("committing transaction: %w", err)
 	}
 	return value, CommandReplay{Status: status, Body: body}, nil
@@ -656,8 +705,16 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, now() + ($8::bigint * interval '1 second'))
 }
 
 func writeOperationalEvent(ctx context.Context, tx pgx.Tx, event operationalEvent) error {
+	ctx, span := observability.StartSpan(ctx, "operations.write_operational_event",
+		attribute.String("seatd.organisation_id", event.OrganisationID.String()),
+		attribute.String("seatd.location_id", event.LocationID.String()),
+		attribute.String("seatd.event_type", event.EventType),
+		attribute.String("seatd.entity_type", event.EntityType),
+	)
+	defer span.End()
 	data, err := events.MarshalData(event.Data)
 	if err != nil {
+		observability.RecordSpanError(span, err)
 		return fmt.Errorf("encoding operational event data: %w", err)
 	}
 	actorRef := event.ActorRef
@@ -691,8 +748,13 @@ func writeOperationalEvent(ctx context.Context, tx pgx.Tx, event operationalEven
 		CorrelationID:  commandID,
 		Data:           data,
 	}
+	carrier := propagation.MapCarrier{}
+	observability.InjectTraceContext(ctx, carrier)
+	envelope.Traceparent = carrier.Get("traceparent")
+	envelope.Tracestate = carrier.Get("tracestate")
 	payload, err := json.Marshal(envelope)
 	if err != nil {
+		observability.RecordSpanError(span, err)
 		return fmt.Errorf("encoding operational event envelope: %w", err)
 	}
 
@@ -719,6 +781,7 @@ INSERT INTO operational_events (
 )
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $6, $7, $8, $9, $10, $11, $11, $12, $13, $14)
 `, eventID, event.OrganisationID, event.LocationID, event.EventType, events.SchemaVersion, event.EntityType, event.EntityID, event.EntityVersion, actorRef, event.DeviceID, event.CommandID, data, payload, now); err != nil {
+		observability.RecordSpanError(span, err)
 		return fmt.Errorf("writing operational event: %w", err)
 	}
 	topic := event.Topic
@@ -734,9 +797,11 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $6, $7, $8, $9, $10, $11, $11, $12, $13,
 INSERT INTO outbox_records (organisation_id, location_id, event_id, topic, destination, payload)
 VALUES ($1, $2, $3, $4, $5, $6)
 `, event.OrganisationID, event.LocationID, eventID, topic, destination, payload); err != nil {
+			observability.RecordSpanError(span, err)
 			return fmt.Errorf("writing outbox record for %s: %w", destination, err)
 		}
 	}
+	span.SetAttributes(attribute.String("seatd.event_id", eventID.String()))
 	return nil
 }
 

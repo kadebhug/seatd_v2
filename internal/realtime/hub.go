@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/kadebhug/seatd_v2/internal/domain/events"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 const DestinationOperations = "realtime.operations"
@@ -104,6 +105,13 @@ func (h *Hub) Unsubscribe(client *Client) {
 }
 
 func (h *Hub) Publish(ctx context.Context, event events.Envelope) {
+	ctx, span := startSpan(ctx, "realtime.publish",
+		attribute.String("seatd.event_id", event.ID.String()),
+		attribute.String("seatd.event_type", event.Type),
+		attribute.String("seatd.organisation_id", event.OrganisationID.String()),
+		attribute.String("seatd.location_id", event.LocationID.String()),
+	)
+	defer span.End()
 	message := MessageFromEvent(event)
 	scope := Scope{OrganisationID: event.OrganisationID, LocationID: event.LocationID}
 
@@ -113,6 +121,7 @@ func (h *Hub) Publish(ctx context.Context, event events.Envelope) {
 		clients = append(clients, client)
 	}
 	h.mu.RUnlock()
+	span.SetAttributes(attribute.Int("seatd.realtime_clients", len(clients)))
 
 	h.metrics.MessagesPublished.Add(1)
 	for _, client := range clients {

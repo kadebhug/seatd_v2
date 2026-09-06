@@ -18,7 +18,9 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/kadebhug/seatd_v2/internal/domain/events"
+	"github.com/kadebhug/seatd_v2/internal/observability"
 	"github.com/kadebhug/seatd_v2/internal/store/db"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 const (
@@ -75,8 +77,11 @@ type QRExport struct {
 }
 
 func (s *Service) GuestContext(ctx context.Context, token string) (GuestContext, error) {
+	ctx, span := observability.StartSpan(ctx, "operations.guest_context")
+	defer span.End()
 	capability, err := s.resolveQRCapability(ctx, token)
 	if err != nil {
+		observability.RecordSpanError(span, err)
 		return GuestContext{}, err
 	}
 
@@ -131,18 +136,30 @@ func (s *Service) GuestContext(ctx context.Context, token string) (GuestContext,
 		}
 		return nil
 	})
+	observability.RecordSpanError(span, err)
 	return result, err
 }
 
 func (s *Service) CreateGuestRequest(ctx context.Context, arg GuestRequestParams, encode func(db.AssistRequest) (int32, []byte, error)) (db.AssistRequest, CommandReplay, error) {
+	ctx, span := observability.StartSpan(ctx, "operations.create_guest_request",
+		attribute.String("seatd.guest_action_key", strings.TrimSpace(arg.ActionKey)),
+	)
+	defer span.End()
 	actionKey := strings.TrimSpace(arg.ActionKey)
 	if !validGuestActionKey(actionKey) {
+		observability.RecordSpanError(span, ErrActionNotEnabled)
 		return db.AssistRequest{}, CommandReplay{}, ErrActionNotEnabled
 	}
 	capability, err := s.resolveQRCapability(ctx, arg.Token)
 	if err != nil {
+		observability.RecordSpanError(span, err)
 		return db.AssistRequest{}, CommandReplay{}, err
 	}
+	span.SetAttributes(
+		attribute.String("seatd.organisation_id", capability.OrganisationID.String()),
+		attribute.String("seatd.location_id", capability.LocationID.String()),
+		attribute.String("seatd.table_id", capability.TableID.String()),
+	)
 	meta := CommandMeta{
 		ID:          arg.IdempotencyKey,
 		Type:        "guest.request",
@@ -150,7 +167,7 @@ func (s *Service) CreateGuestRequest(ctx context.Context, arg GuestRequestParams
 		Retention:   DefaultIdempotencyRetention,
 	}
 	createdNew := false
-	return runGuestCommand(ctx, s, capability.OrganisationID, capability.LocationID, guestActorRef, meta, func(q *db.Queries) (db.AssistRequest, error) {
+	assist, replay, err := runGuestCommand(ctx, s, capability.OrganisationID, capability.LocationID, guestActorRef, meta, func(q *db.Queries) (db.AssistRequest, error) {
 		location, err := q.GetLocation(ctx, db.GetLocationParams{
 			ID:             capability.LocationID,
 			OrganisationID: capability.OrganisationID,
@@ -236,11 +253,18 @@ func (s *Service) CreateGuestRequest(ctx context.Context, arg GuestRequestParams
 			},
 		})
 	}, encode)
+	observability.RecordSpanError(span, err)
+	return assist, replay, err
 }
 
 func (s *Service) GetGuestRequest(ctx context.Context, token string, assistID uuid.UUID) (db.AssistRequest, error) {
+	ctx, span := observability.StartSpan(ctx, "operations.get_guest_request",
+		attribute.String("seatd.assist_id", assistID.String()),
+	)
+	defer span.End()
 	capability, err := s.resolveQRCapability(ctx, token)
 	if err != nil {
+		observability.RecordSpanError(span, err)
 		return db.AssistRequest{}, err
 	}
 	var assist db.AssistRequest
@@ -260,12 +284,18 @@ func (s *Service) GetGuestRequest(ctx context.Context, token string, assistID uu
 		assist = found
 		return nil
 	})
+	observability.RecordSpanError(span, err)
 	return assist, err
 }
 
 func (s *Service) CancelGuestRequest(ctx context.Context, arg GuestCancelParams, encode func(db.AssistRequest) (int32, []byte, error)) (db.AssistRequest, CommandReplay, error) {
+	ctx, span := observability.StartSpan(ctx, "operations.cancel_guest_request",
+		attribute.String("seatd.assist_id", arg.AssistID.String()),
+	)
+	defer span.End()
 	capability, err := s.resolveQRCapability(ctx, arg.Token)
 	if err != nil {
+		observability.RecordSpanError(span, err)
 		return db.AssistRequest{}, CommandReplay{}, err
 	}
 	meta := CommandMeta{
@@ -274,7 +304,7 @@ func (s *Service) CancelGuestRequest(ctx context.Context, arg GuestCancelParams,
 		PayloadHash: arg.PayloadHash,
 		Retention:   DefaultIdempotencyRetention,
 	}
-	return runGuestCommand(ctx, s, capability.OrganisationID, capability.LocationID, guestActorRef, meta, func(q *db.Queries) (db.AssistRequest, error) {
+	assist, replay, err := runGuestCommand(ctx, s, capability.OrganisationID, capability.LocationID, guestActorRef, meta, func(q *db.Queries) (db.AssistRequest, error) {
 		current, err := q.GetGuestAssistByID(ctx, db.GetGuestAssistByIDParams{
 			ID:             arg.AssistID,
 			OrganisationID: capability.OrganisationID,
@@ -322,6 +352,8 @@ func (s *Service) CancelGuestRequest(ctx context.Context, arg GuestCancelParams,
 			},
 		})
 	}, encode)
+	observability.RecordSpanError(span, err)
+	return assist, replay, err
 }
 
 func (s *Service) ExportTableQRCapability(ctx context.Context, organisationID, locationID, tableID uuid.UUID, label string, expiresAt pgtype.Timestamptz) (QRExport, error) {
@@ -454,8 +486,15 @@ func runGuestCommand[T any](
 	encode func(T) (int32, []byte, error),
 ) (T, CommandReplay, error) {
 	var zero T
+	ctx, span := observability.StartSpan(ctx, "operations.guest_command",
+		attribute.String("seatd.organisation_id", organisationID.String()),
+		attribute.String("seatd.location_id", locationID.String()),
+		attribute.String("seatd.command_type", meta.Type),
+	)
+	defer span.End()
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
+		observability.RecordSpanError(span, err)
 		return zero, CommandReplay{}, fmt.Errorf("beginning transaction: %w", err)
 	}
 	if _, err := tx.Exec(ctx, `
@@ -463,16 +502,20 @@ SELECT set_config('seatd.platform_admin', 'false', true),
        set_config('seatd.current_organisation_id', $1::text, true),
        set_config('seatd.current_location_id', $2::text, true)
 `, organisationID.String(), locationID.String()); err != nil {
+		observability.RecordSpanError(span, err)
 		return zero, CommandReplay{}, rollback(tx, ctx, fmt.Errorf("setting tenant context: %w", err))
 	}
 	queries := s.queries.WithTx(tx)
 	if meta.ID != uuid.Nil {
 		replay, found, err := getIdempotencyReplay(ctx, tx, organisationID, meta)
 		if err != nil {
+			observability.RecordSpanError(span, err)
 			return zero, CommandReplay{}, rollback(tx, ctx, err)
 		}
 		if found {
+			span.SetAttributes(attribute.Bool("seatd.command_replayed", true))
 			if err := tx.Commit(ctx); err != nil {
+				observability.RecordSpanError(span, err)
 				return zero, CommandReplay{}, fmt.Errorf("committing replay transaction: %w", err)
 			}
 			return zero, replay, nil
@@ -480,13 +523,16 @@ SELECT set_config('seatd.platform_admin', 'false', true),
 	}
 	value, err := execute(queries)
 	if err != nil {
+		observability.RecordSpanError(span, err)
 		return zero, CommandReplay{}, rollback(tx, ctx, err)
 	}
 	if err := after(tx, value); err != nil {
+		observability.RecordSpanError(span, err)
 		return zero, CommandReplay{}, rollback(tx, ctx, err)
 	}
 	status, body, err := encode(value)
 	if err != nil {
+		observability.RecordSpanError(span, err)
 		return zero, CommandReplay{}, rollback(tx, ctx, fmt.Errorf("encoding idempotency response: %w", err))
 	}
 	if meta.ID != uuid.Nil {
@@ -494,10 +540,12 @@ SELECT set_config('seatd.platform_admin', 'false', true),
 			body = []byte(`{}`)
 		}
 		if err := insertIdempotencyRecord(ctx, tx, organisationID, locationID, actorRef, meta, status, body); err != nil {
+			observability.RecordSpanError(span, err)
 			return zero, CommandReplay{}, rollback(tx, ctx, err)
 		}
 	}
 	if err := tx.Commit(ctx); err != nil {
+		observability.RecordSpanError(span, err)
 		return zero, CommandReplay{}, fmt.Errorf("committing transaction: %w", err)
 	}
 	return value, CommandReplay{Status: status, Body: body}, nil

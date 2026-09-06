@@ -19,7 +19,9 @@ import (
 
 	"github.com/kadebhug/seatd_v2/internal/domain/identity"
 	"github.com/kadebhug/seatd_v2/internal/domain/operations"
+	"github.com/kadebhug/seatd_v2/internal/observability"
 	"github.com/kadebhug/seatd_v2/internal/store/db"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 const (
@@ -330,39 +332,59 @@ LIMIT 100
 }
 
 func (s *Service) Health(ctx context.Context, actor TenantActor, connectionID uuid.UUID) (Health, error) {
+	ctx, span := observability.StartSpan(ctx, "integrations.health",
+		attribute.String("seatd.connection_id", connectionID.String()),
+	)
+	defer span.End()
 	connection, err := s.getConnectionForActor(ctx, actor, connectionID, identity.PermissionIntegrationsRead)
 	if err != nil {
+		observability.RecordSpanError(span, err)
 		return Health{}, err
 	}
 	adapter, err := s.adapter(connection.Vendor)
 	if err != nil {
+		observability.RecordSpanError(span, err)
 		return Health{}, err
 	}
-	return adapter.CheckHealth(ctx, connection)
+	health, err := adapter.CheckHealth(ctx, connection)
+	observability.RecordSpanError(span, err)
+	return health, err
 }
 
 func (s *Service) ReceiveWebhook(ctx context.Context, vendor string, connectionID uuid.UUID, signature string, payload []byte) (WebhookResult, error) {
+	ctx, span := observability.StartSpan(ctx, "integrations.receive_webhook",
+		attribute.String("seatd.vendor", strings.TrimSpace(vendor)),
+		attribute.String("seatd.connection_id", connectionID.String()),
+	)
+	defer span.End()
 	vendor = strings.TrimSpace(vendor)
 	if vendor == "" || connectionID == uuid.Nil || len(payload) == 0 {
+		observability.RecordSpanError(span, ErrValidation)
 		return WebhookResult{}, ErrValidation
 	}
 	connection, err := s.getConnectionByID(ctx, connectionID)
 	if err != nil {
+		observability.RecordSpanError(span, err)
 		return WebhookResult{}, err
 	}
 	if connection.Vendor != vendor {
+		observability.RecordSpanError(span, ErrNotFound)
 		return WebhookResult{}, ErrNotFound
 	}
 	adapter, err := s.adapter(vendor)
 	if err != nil {
+		observability.RecordSpanError(span, err)
 		return WebhookResult{}, err
 	}
 	fact, signatureValid, err := adapter.HandleWebhook(ctx, connection, payload, signature)
 	if err != nil {
+		observability.RecordSpanError(span, err)
 		return WebhookResult{}, err
 	}
+	span.SetAttributes(attribute.Bool("seatd.signature_valid", signatureValid))
 	webhook, inserted, err := s.insertWebhook(ctx, connection, fact.ExternalEventID, signatureValid, payload)
 	if err != nil {
+		observability.RecordSpanError(span, err)
 		return WebhookResult{}, err
 	}
 	if !inserted || webhook.ProcessingState == WebhookProcessed {
@@ -370,9 +392,11 @@ func (s *Service) ReceiveWebhook(ctx context.Context, vendor string, connectionI
 	}
 	if !signatureValid {
 		webhook, err = s.markWebhook(ctx, webhook.ID, WebhookSkipped, "signature validation failed")
+		observability.RecordSpanError(span, err)
 		return WebhookResult{Webhook: webhook}, err
 	}
 	if err := s.applyWebhookFact(ctx, connection, fact); err != nil {
+		observability.RecordSpanError(span, err)
 		webhook, markErr := s.markWebhook(ctx, webhook.ID, WebhookFailed, err.Error())
 		if markErr != nil {
 			return WebhookResult{}, errors.Join(err, markErr)
@@ -380,30 +404,41 @@ func (s *Service) ReceiveWebhook(ctx context.Context, vendor string, connectionI
 		return WebhookResult{Webhook: webhook}, nil
 	}
 	webhook, err = s.markWebhook(ctx, webhook.ID, WebhookProcessed, "")
+	observability.RecordSpanError(span, err)
 	return WebhookResult{Webhook: webhook, Applied: true}, err
 }
 
 func (s *Service) ReplayWebhook(ctx context.Context, actor TenantActor, webhookID uuid.UUID) (WebhookResult, error) {
+	ctx, span := observability.StartSpan(ctx, "integrations.replay_webhook",
+		attribute.String("seatd.webhook_id", webhookID.String()),
+	)
+	defer span.End()
 	if err := actor.validate(true); err != nil || webhookID == uuid.Nil {
+		observability.RecordSpanError(span, ErrValidation)
 		return WebhookResult{}, ErrValidation
 	}
 	webhook, connection, err := s.getWebhookForActor(ctx, actor, webhookID, identity.PermissionIntegrationsManage)
 	if err != nil {
+		observability.RecordSpanError(span, err)
 		return WebhookResult{}, err
 	}
 	adapter, err := s.adapter(connection.Vendor)
 	if err != nil {
+		observability.RecordSpanError(span, err)
 		return WebhookResult{}, err
 	}
 	fact, signatureValid, err := adapter.HandleWebhook(ctx, connection, webhook.Payload, "")
 	if err != nil {
+		observability.RecordSpanError(span, err)
 		return WebhookResult{}, err
 	}
 	if !signatureValid && !webhook.SignatureValid {
 		webhook, err = s.markWebhook(ctx, webhook.ID, WebhookSkipped, "signature validation failed")
+		observability.RecordSpanError(span, err)
 		return WebhookResult{Webhook: webhook}, err
 	}
 	if err := s.applyWebhookFact(ctx, connection, fact); err != nil {
+		observability.RecordSpanError(span, err)
 		webhook, markErr := s.markWebhook(ctx, webhook.ID, WebhookFailed, err.Error())
 		if markErr != nil {
 			return WebhookResult{}, errors.Join(err, markErr)
@@ -411,25 +446,38 @@ func (s *Service) ReplayWebhook(ctx context.Context, actor TenantActor, webhookI
 		return WebhookResult{Webhook: webhook}, nil
 	}
 	webhook, err = s.markWebhook(ctx, webhook.ID, WebhookProcessed, "")
+	observability.RecordSpanError(span, err)
 	return WebhookResult{Webhook: webhook, Applied: true}, err
 }
 
 func (s *Service) Reconcile(ctx context.Context, actor TenantActor, connectionID uuid.UUID) (ReconciliationRun, error) {
+	ctx, span := observability.StartSpan(ctx, "integrations.reconcile",
+		attribute.String("seatd.connection_id", connectionID.String()),
+	)
+	defer span.End()
 	connection, err := s.getConnectionForActor(ctx, actor, connectionID, identity.PermissionIntegrationsManage)
 	if err != nil {
+		observability.RecordSpanError(span, err)
 		return ReconciliationRun{}, err
 	}
-	return s.reconcileConnection(ctx, connection)
+	run, err := s.reconcileConnection(ctx, connection)
+	observability.RecordSpanError(span, err)
+	return run, err
 }
 
 func (s *Service) ReconcileConnected(ctx context.Context) (int, error) {
+	ctx, span := observability.StartSpan(ctx, "integrations.reconcile_connected")
+	defer span.End()
 	connections, err := s.listConnectedConnections(ctx)
 	if err != nil {
+		observability.RecordSpanError(span, err)
 		return 0, err
 	}
+	span.SetAttributes(attribute.Int("seatd.connections", len(connections)))
 	processed := 0
 	for _, connection := range connections {
 		if _, err := s.reconcileConnection(ctx, connection); err != nil {
+			observability.RecordSpanError(span, err)
 			return processed, err
 		}
 		processed++
@@ -438,24 +486,37 @@ func (s *Service) ReconcileConnected(ctx context.Context) (int, error) {
 }
 
 func (s *Service) reconcileConnection(ctx context.Context, connection Connection) (ReconciliationRun, error) {
+	ctx, span := observability.StartSpan(ctx, "integrations.reconcile_connection",
+		attribute.String("seatd.connection_id", connection.ID.String()),
+		attribute.String("seatd.vendor", connection.Vendor),
+		attribute.String("seatd.organisation_id", connection.OrganisationID.String()),
+		attribute.String("seatd.location_id", connection.LocationID.String()),
+	)
+	defer span.End()
 	adapter, err := s.adapter(connection.Vendor)
 	if err != nil {
+		observability.RecordSpanError(span, err)
 		return ReconciliationRun{}, err
 	}
 	run, err := s.createRun(ctx, connection)
 	if err != nil {
+		observability.RecordSpanError(span, err)
 		return ReconciliationRun{}, err
 	}
+	span.SetAttributes(attribute.String("seatd.reconciliation_run_id", run.ID.String()))
 	states, err := adapter.FetchExternalStatus(ctx, connection)
 	if err != nil {
+		observability.RecordSpanError(span, err)
 		_, _ = s.finishRun(ctx, run.ID, "failed", 0, 0, 0, err.Error())
 		return ReconciliationRun{}, err
 	}
+	span.SetAttributes(attribute.Int("seatd.external_states", len(states)))
 	var discrepancyCount int32
 	var correctedCount int32
 	for _, state := range states {
 		resolution, hadDiscrepancy, corrected, err := s.reconcileTableState(ctx, connection, run.ID, state)
 		if err != nil {
+			observability.RecordSpanError(span, err)
 			_, _ = s.finishRun(ctx, run.ID, "failed", int32(len(states)), discrepancyCount, correctedCount, err.Error())
 			return ReconciliationRun{}, err
 		}
@@ -467,20 +528,30 @@ func (s *Service) reconcileConnection(ctx context.Context, connection Connection
 		}
 		_ = resolution
 	}
-	return s.finishRun(ctx, run.ID, "completed", int32(len(states)), discrepancyCount, correctedCount, "")
+	finished, err := s.finishRun(ctx, run.ID, "completed", int32(len(states)), discrepancyCount, correctedCount, "")
+	observability.RecordSpanError(span, err)
+	return finished, err
 }
 
 func (s *Service) reconcileTableState(ctx context.Context, connection Connection, runID uuid.UUID, state ExternalTableState) (string, bool, bool, error) {
+	ctx, span := observability.StartSpan(ctx, "integrations.reconcile_table_state",
+		attribute.String("seatd.connection_id", connection.ID.String()),
+		attribute.String("seatd.external_table_id", state.ExternalTableID),
+	)
+	defer span.End()
 	mapping, err := s.mappingByExternalID(ctx, connection, state.ExternalTableID, state.Label)
 	if err != nil {
+		observability.RecordSpanError(span, err)
 		return "", false, false, err
 	}
 	if mapping.TableID == nil || mapping.Status != MappingMapped {
 		_, err := s.recordDiscrepancy(ctx, connection, runID, mapping, nil, state.ExternalTableID, "unmapped_table", nil, &state.Status, ResolutionReview, nil)
+		observability.RecordSpanError(span, err)
 		return ResolutionReview, true, false, err
 	}
 	current, err := s.currentTableState(ctx, connection, *mapping.TableID)
 	if err != nil {
+		observability.RecordSpanError(span, err)
 		return "", false, false, err
 	}
 	if current.Status == state.Status {
@@ -488,6 +559,7 @@ func (s *Service) reconcileTableState(ctx context.Context, connection Connection
 	}
 	hasAssists, err := s.hasActiveAssists(ctx, connection, *mapping.TableID)
 	if err != nil {
+		observability.RecordSpanError(span, err)
 		return "", false, false, err
 	}
 	resolution := ResolutionAutoCorrected
@@ -498,31 +570,51 @@ func (s *Service) reconcileTableState(ctx context.Context, connection Connection
 	}
 	_, err = s.recordDiscrepancy(ctx, connection, runID, mapping, mapping.TableID, state.ExternalTableID, discrepancyType, &current.Status, &state.Status, resolution, nil)
 	if err != nil || resolution != ResolutionAutoCorrected {
+		observability.RecordSpanError(span, err)
 		return resolution, true, false, err
 	}
 	err = s.applyTableState(ctx, connection, *mapping.TableID, current.Version, state.Status, nil)
+	observability.RecordSpanError(span, err)
 	return resolution, true, err == nil, err
 }
 
 func (s *Service) applyWebhookFact(ctx context.Context, connection Connection, fact WebhookFact) error {
+	ctx, span := observability.StartSpan(ctx, "integrations.apply_webhook_fact",
+		attribute.String("seatd.connection_id", connection.ID.String()),
+		attribute.String("seatd.external_table_id", fact.ExternalTableID),
+		attribute.String("seatd.next_status", fact.Status),
+	)
+	defer span.End()
 	mapping, err := s.mappingByExternalID(ctx, connection, fact.ExternalTableID, "")
 	if err != nil {
+		observability.RecordSpanError(span, err)
 		return err
 	}
 	if mapping.TableID == nil || mapping.Status != MappingMapped {
-		return fmt.Errorf("external table %s is not mapped", fact.ExternalTableID)
+		err := fmt.Errorf("external table %s is not mapped", fact.ExternalTableID)
+		observability.RecordSpanError(span, err)
+		return err
 	}
 	current, err := s.currentTableState(ctx, connection, *mapping.TableID)
 	if err != nil {
+		observability.RecordSpanError(span, err)
 		return err
 	}
 	if current.Status == fact.Status {
 		return nil
 	}
-	return s.applyTableState(ctx, connection, *mapping.TableID, current.Version, fact.Status, fact.PartySize)
+	err = s.applyTableState(ctx, connection, *mapping.TableID, current.Version, fact.Status, fact.PartySize)
+	observability.RecordSpanError(span, err)
+	return err
 }
 
 func (s *Service) applyTableState(ctx context.Context, connection Connection, tableID uuid.UUID, expectedVersion int32, status string, partySize *int32) error {
+	ctx, span := observability.StartSpan(ctx, "integrations.apply_table_state",
+		attribute.String("seatd.connection_id", connection.ID.String()),
+		attribute.String("seatd.table_id", tableID.String()),
+		attribute.String("seatd.next_status", status),
+	)
+	defer span.End()
 	actor := "integration:" + connection.ID.String()
 	command := operations.CommandMeta{
 		ID:          uuid.New(),
@@ -542,6 +634,7 @@ func (s *Service) applyTableState(ctx context.Context, connection Connection, ta
 			Command:         command,
 		})
 		if err != nil && !errors.Is(err, operations.ErrAlreadyOccupied) {
+			observability.RecordSpanError(span, err)
 			return err
 		}
 	case operations.TableStatusAvailable:
@@ -554,9 +647,11 @@ func (s *Service) applyTableState(ctx context.Context, connection Connection, ta
 			Command:         command,
 		})
 		if err != nil && !errors.Is(err, operations.ErrAlreadyAvailable) {
+			observability.RecordSpanError(span, err)
 			return err
 		}
 	default:
+		observability.RecordSpanError(span, ErrValidation)
 		return ErrValidation
 	}
 	return nil

@@ -12,6 +12,9 @@ import (
 
 	"github.com/kadebhug/seatd_v2/internal/app"
 	"github.com/kadebhug/seatd_v2/internal/observability"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type Status struct {
@@ -50,9 +53,19 @@ func Run(ctx context.Context, cfg app.Config, logger *slog.Logger, handler http.
 	if len(metrics) > 0 && metrics[0] != nil {
 		handler = metrics[0].Middleware(handler)
 	}
+	handler = requestLogger(logger, handler)
+	handler = otelhttp.NewHandler(handler, cfg.Name, otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
+		if r.Pattern != "" {
+			return r.Method + " " + r.Pattern
+		}
+		if r.URL != nil && r.URL.Path != "" {
+			return r.Method + " unmatched"
+		}
+		return r.Method + " unknown"
+	}))
 	server := &http.Server{
 		Addr:              cfg.Address,
-		Handler:           requestLogger(logger, handler),
+		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -92,12 +105,19 @@ func requestLogger(logger *slog.Logger, next http.Handler) http.Handler {
 		started := time.Now()
 		recorder := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(recorder, r)
-		logger.InfoContext(r.Context(), "http request",
+		if r.Pattern != "" {
+			span := trace.SpanFromContext(r.Context())
+			span.SetName(r.Method + " " + r.Pattern)
+			span.SetAttributes(attribute.String("http.route", r.Pattern))
+		}
+		attrs := []any{
 			"method", r.Method,
 			"path", r.URL.Path,
 			"status", recorder.status,
 			"duration_ms", time.Since(started).Milliseconds(),
-		)
+		}
+		attrs = append(attrs, observability.TraceLogAttrs(r.Context())...)
+		logger.InfoContext(r.Context(), "http request", attrs...)
 	})
 }
 

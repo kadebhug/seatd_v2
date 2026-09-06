@@ -37,6 +37,18 @@ func main() {
 	}
 
 	logger := app.NewLogger(cfg)
+	shutdownTracing, err := observability.InitTracing(ctx, cfg, logger)
+	if err != nil {
+		logger.ErrorContext(ctx, "tracing configuration invalid", "error", err)
+		os.Exit(1)
+	}
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
+		defer cancel()
+		if err := shutdownTracing(shutdownCtx); err != nil {
+			logger.WarnContext(ctx, "tracing shutdown failed", "error", err)
+		}
+	}()
 	if cfg.DatabaseURL == "" {
 		logger.ErrorContext(ctx, "database url is required", "variable", "SEATD_DATABASE_URL")
 		os.Exit(1)

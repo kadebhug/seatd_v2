@@ -10,7 +10,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/kadebhug/seatd_v2/internal/domain/events"
+	"github.com/kadebhug/seatd_v2/internal/observability"
 	"github.com/kadebhug/seatd_v2/internal/store/db"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 type Projector struct {
@@ -26,11 +28,20 @@ func (p *Projector) Name() string {
 }
 
 func (p *Projector) Handle(ctx context.Context, event events.Envelope) error {
+	ctx, span := observability.StartSpan(ctx, "analytics.projector_handle",
+		attribute.String("seatd.event_id", event.ID.String()),
+		attribute.String("seatd.event_type", event.Type),
+		attribute.String("seatd.organisation_id", event.OrganisationID.String()),
+		attribute.String("seatd.location_id", event.LocationID.String()),
+	)
+	defer span.End()
 	tx, err := p.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
+		observability.RecordSpanError(span, err)
 		return fmt.Errorf("beginning analytics projection transaction: %w", err)
 	}
 	if _, err := tx.Exec(ctx, "SELECT set_config('seatd.platform_admin', 'true', true)"); err != nil {
+		observability.RecordSpanError(span, err)
 		return rollback(tx, ctx, fmt.Errorf("setting analytics projector context: %w", err))
 	}
 	q := db.New(tx)
@@ -39,20 +50,25 @@ func (p *Projector) Handle(ctx context.Context, event events.Envelope) error {
 		OrganisationID: event.OrganisationID,
 	})
 	if err != nil {
+		observability.RecordSpanError(span, err)
 		return rollback(tx, ctx, fmt.Errorf("getting projector location: %w", err))
 	}
 	tz, err := time.LoadLocation(location.Timezone)
 	if err != nil {
+		observability.RecordSpanError(span, err)
 		return rollback(tx, ctx, fmt.Errorf("loading location timezone: %w", err))
 	}
 	start, end := localDateWindow(event.OccurredAt, tz)
 	if err := rebuildRange(ctx, tx, q, event.OrganisationID, event.LocationID, start, end); err != nil {
+		observability.RecordSpanError(span, err)
 		return rollback(tx, ctx, err)
 	}
 	if err := upsertCheckpoint(ctx, tx, event); err != nil {
+		observability.RecordSpanError(span, err)
 		return rollback(tx, ctx, err)
 	}
 	if err := tx.Commit(ctx); err != nil {
+		observability.RecordSpanError(span, err)
 		return fmt.Errorf("committing analytics projection transaction: %w", err)
 	}
 	return nil
@@ -67,12 +83,21 @@ func rebuildRange(
 	from time.Time,
 	to time.Time,
 ) error {
+	ctx, span := observability.StartSpan(ctx, "analytics.rebuild_range",
+		attribute.String("seatd.organisation_id", organisationID.String()),
+		attribute.String("seatd.location_id", locationID.String()),
+		attribute.String("seatd.from", from.Format(time.RFC3339)),
+		attribute.String("seatd.to", to.Format(time.RFC3339)),
+	)
+	defer span.End()
 	location, err := q.GetLocation(ctx, db.GetLocationParams{ID: locationID, OrganisationID: organisationID})
 	if err != nil {
+		observability.RecordSpanError(span, err)
 		return fmt.Errorf("getting rebuild location: %w", err)
 	}
 	tz, err := time.LoadLocation(location.Timezone)
 	if err != nil {
+		observability.RecordSpanError(span, err)
 		return fmt.Errorf("loading rebuild timezone: %w", err)
 	}
 	if _, err := tx.Exec(ctx, `
@@ -84,15 +109,18 @@ SET projector_version = EXCLUDED.projector_version,
     rebuild_started_at = now(),
     updated_at = now()
 `, ProjectorName, ProjectorVersion); err != nil {
+		observability.RecordSpanError(span, err)
 		return fmt.Errorf("marking analytics rebuild running: %w", err)
 	}
 
 	for day := calendarDateInLocation(from, tz); day.Before(calendarDateInLocation(to, tz)); day = day.AddDate(0, 0, 1) {
 		dayStart, dayEnd := localCalendarDateWindow(day, tz)
 		if err := clearProjectionDay(ctx, tx, organisationID, locationID, day); err != nil {
+			observability.RecordSpanError(span, err)
 			return err
 		}
 		if err := projectDay(ctx, tx, q, organisationID, locationID, day, dayStart, dayEnd); err != nil {
+			observability.RecordSpanError(span, err)
 			return err
 		}
 	}
@@ -104,6 +132,7 @@ SET rebuild_status = 'idle',
     updated_at = now()
 WHERE projector_name = $1
 `, ProjectorName); err != nil {
+		observability.RecordSpanError(span, err)
 		return fmt.Errorf("marking analytics rebuild complete: %w", err)
 	}
 	return nil
@@ -141,16 +170,26 @@ func projectDay(
 	dayStart time.Time,
 	dayEnd time.Time,
 ) error {
+	ctx, span := observability.StartSpan(ctx, "analytics.project_day",
+		attribute.String("seatd.organisation_id", organisationID.String()),
+		attribute.String("seatd.location_id", locationID.String()),
+		attribute.String("seatd.day", day.Format("2006-01-02")),
+	)
+	defer span.End()
 	if err := projectLocation(ctx, tx, organisationID, locationID, day, dayStart, dayEnd); err != nil {
+		observability.RecordSpanError(span, err)
 		return err
 	}
 	if err := projectGrouped(ctx, tx, organisationID, locationID, day, dayStart, dayEnd, GroupByFloor); err != nil {
+		observability.RecordSpanError(span, err)
 		return err
 	}
 	if err := projectGrouped(ctx, tx, organisationID, locationID, day, dayStart, dayEnd, GroupByZone); err != nil {
+		observability.RecordSpanError(span, err)
 		return err
 	}
 	if err := projectTables(ctx, tx, organisationID, locationID, day, dayStart, dayEnd, "day"); err != nil {
+		observability.RecordSpanError(span, err)
 		return err
 	}
 	for hourStart := dayStart; hourStart.Before(dayEnd); hourStart = hourStart.Add(time.Hour) {
@@ -159,6 +198,7 @@ func projectDay(
 			hourEnd = dayEnd
 		}
 		if err := projectTables(ctx, tx, organisationID, locationID, day, hourStart, hourEnd, "hour"); err != nil {
+			observability.RecordSpanError(span, err)
 			return err
 		}
 	}
@@ -167,19 +207,23 @@ func projectDay(
 		LocationID:     locationID,
 	})
 	if err != nil {
+		observability.RecordSpanError(span, err)
 		return fmt.Errorf("listing projection service periods: %w", err)
 	}
 	location, err := q.GetLocation(ctx, db.GetLocationParams{ID: locationID, OrganisationID: organisationID})
 	if err != nil {
+		observability.RecordSpanError(span, err)
 		return fmt.Errorf("getting service period location: %w", err)
 	}
 	tz, err := time.LoadLocation(location.Timezone)
 	if err != nil {
+		observability.RecordSpanError(span, err)
 		return fmt.Errorf("loading service period timezone: %w", err)
 	}
 	for _, period := range periods {
 		window, ok, err := ServicePeriodWindowForDate(day, tz, period.DaysOfWeek, period.StartTime, period.EndTime)
 		if err != nil {
+			observability.RecordSpanError(span, err)
 			return err
 		}
 		if !ok {
@@ -187,9 +231,11 @@ func projectDay(
 		}
 		metric, err := calculateWindowMetric(ctx, tx, organisationID, locationID, uuid.Nil, "location", window.Start, window.End, window.End)
 		if err != nil {
+			observability.RecordSpanError(span, err)
 			return err
 		}
 		if err := insertServicePeriodMetric(ctx, tx, organisationID, locationID, period.ID, day, window.Start, window.End, metric); err != nil {
+			observability.RecordSpanError(span, err)
 			return err
 		}
 	}
@@ -207,6 +253,12 @@ func calculateWindowMetric(
 	windowEnd time.Time,
 	asOf time.Time,
 ) (Metric, error) {
+	ctx, span := observability.StartSpan(ctx, "analytics.calculate_window_metric",
+		attribute.String("seatd.organisation_id", organisationID.String()),
+		attribute.String("seatd.location_id", locationID.String()),
+		attribute.String("seatd.scope", scope),
+	)
+	defer span.End()
 	filter, args := scopeFilter(scope, groupID)
 	query := fmt.Sprintf(`
 WITH scoped_tables AS (
@@ -289,6 +341,7 @@ GROUP BY table_count.value, session_overlap.value, assist_metrics.request_count,
 		&metric.AnomalyCount,
 	)
 	if err != nil {
+		observability.RecordSpanError(span, err)
 		return Metric{}, fmt.Errorf("calculating analytics metric: %w", err)
 	}
 	return FinalizeMetric(metric), nil
