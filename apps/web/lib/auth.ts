@@ -42,6 +42,7 @@ export type IDTokenClaims = {
   iat?: number;
   nonce?: string;
   email?: string;
+  email_verified?: boolean;
   name?: string;
   preferred_username?: string;
 };
@@ -335,6 +336,7 @@ export async function createAPISession(
       issuer: claims.iss,
       subject: claims.sub,
       email: claims.email ?? "",
+      emailVerified: claims.email_verified === true,
       displayName:
         claims.name ?? claims.preferred_username ?? claims.email ?? claims.sub,
       ttlSeconds: sessionTTLSeconds(),

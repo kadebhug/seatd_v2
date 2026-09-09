@@ -32,11 +32,12 @@ type authPolicy struct {
 }
 
 type oidcSessionRequest struct {
-	Issuer      string `json:"issuer"`
-	Subject     string `json:"subject"`
-	Email       string `json:"email"`
-	DisplayName string `json:"displayName"`
-	TTLSeconds  int64  `json:"ttlSeconds"`
+	Issuer        string `json:"issuer"`
+	Subject       string `json:"subject"`
+	Email         string `json:"email"`
+	EmailVerified bool   `json:"emailVerified"`
+	DisplayName   string `json:"displayName"`
+	TTLSeconds    int64  `json:"ttlSeconds"`
 }
 
 type webSessionResponse struct {
@@ -69,8 +70,9 @@ func (api *API) createOIDCWebSession(w http.ResponseWriter, r *http.Request) {
 		ttl = 8 * time.Hour
 	}
 	profile, err := api.ident.ResolveExternalIdentity(r.Context(), identity.ResolveExternalIdentityParams{
-		DisplayName: req.DisplayName,
-		Email:       req.Email,
+		DisplayName:   req.DisplayName,
+		Email:         req.Email,
+		EmailVerified: req.EmailVerified,
 		External: identity.ExternalIdentity{
 			Issuer:  req.Issuer,
 			Subject: req.Subject,
@@ -285,7 +287,7 @@ func (api *API) webSessionDTO(r *http.Request, session identity.WebSession) webS
 
 func (api *API) locationsForSession(r *http.Request, session identity.WebSession) []locationDTO {
 	seen := map[uuid.UUID]bool{}
-	var locations []locationDTO
+	locations := make([]locationDTO, 0)
 	for _, membership := range session.Memberships {
 		if membership.LocationID != uuid.Nil && !seen[membership.LocationID] {
 			location, ok := api.locationForSession(r, membership.OrganisationID, membership.LocationID)

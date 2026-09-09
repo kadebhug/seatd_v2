@@ -11,6 +11,7 @@ for (const name of [
   "ServiceStatus",
   "LocationSnapshotResponse",
   "SyncEventsResponse",
+  "RealtimeMetricsResponse",
 ]) {
   if (!spec.components?.schemas?.[name]) {
     throw new Error(`missing ${name} schema`);
@@ -47,6 +48,7 @@ export const guestRequestCancelEndpoint = "/v1/guest/qr/{token}/requests/{id}/ca
 export const locationSnapshotEndpoint = "/v1/sync/location-snapshot";
 export const syncEventsEndpoint = "/v1/sync/events";
 export const realtimeEndpoint = "/v1/realtime";
+export const realtimeMetricsEndpoint = "/v1/realtime/metrics";
 export const auditTimelineEndpoint = "/v1/audit/timeline";
 export const analyticsSummaryEndpoint = "/v1/analytics/summary";
 export const analyticsTimeseriesEndpoint = "/v1/analytics/timeseries";
@@ -72,6 +74,8 @@ export const integrationDiscrepanciesEndpoint = "/v1/integrations/{id}/discrepan
 export const integrationReconcileEndpoint = "/v1/integrations/{id}/reconcile";
 export const integrationWebhookEndpoint = "/v1/integrations/{vendor}/webhooks";
 export const membershipsEndpoint = "/v1/memberships";
+export const membershipEndpoint = "/v1/memberships/{scope}/{id}";
+export const membershipDisableEndpoint = "/v1/memberships/{scope}/{id}/disable";
 export const ownerOnboardingEndpoint = "/v1/onboarding/owner";
 export const occupyTableEndpoint = "/v1/tables/{id}/occupy";
 export const clearTableEndpoint = "/v1/tables/{id}/clear";
@@ -571,9 +575,27 @@ export interface IntegrationReconciliationResponse {
 export interface Membership {
   id: string;
   scope: "organisation" | "location";
+  organisationId: string;
   locationId?: string;
+  userProfileId?: string;
+  displayName?: string;
+  email?: string;
   memberRef: string;
   role: string;
+  disabledAt?: string;
+  permissions?: string[];
+}
+
+export interface CreateMembershipRequest {
+  scope: "organisation" | "location";
+  locationId?: string;
+  email: string;
+  displayName?: string;
+  role: "organisation_owner" | "location_manager" | "waiter" | "read_only";
+}
+
+export interface UpdateMembershipRoleRequest {
+  role: "organisation_owner" | "location_manager" | "waiter" | "read_only";
 }
 
 export interface TimelineEvent {
@@ -600,6 +622,15 @@ export interface RealtimeMessage {
   version?: number;
   occurredAt: string;
   data: Record<string, unknown>;
+}
+
+export interface RealtimeMetricsResponse {
+  activeConnections: number;
+  connectionsAccepted: number;
+  connectionsClosed: number;
+  messagesPublished: number;
+  messagesDropped: number;
+  backpressureCloses: number;
 }
 
 export interface AuditTimelineResponse {

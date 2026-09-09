@@ -118,12 +118,13 @@ function seatdSessionFromAPI(
   apiSession: APIWebSession,
   secret: string,
 ): SeatdSession {
+  const locations = apiSession.locations ?? [];
+  const memberships = apiSession.memberships ?? [];
   const location =
-    apiSession.locations.find((item) => item.status === "active") ??
-    apiSession.locations[0];
+    locations.find((item) => item.status === "active") ?? locations[0];
   const organisationId =
-    location?.organisationId ?? apiSession.memberships[0]?.organisationId ?? "";
-  const roles = apiSession.memberships
+    location?.organisationId ?? memberships[0]?.organisationId ?? "";
+  const roles = memberships
     .filter((membership) => membership.organisationId === organisationId)
     .filter(
       (membership) =>

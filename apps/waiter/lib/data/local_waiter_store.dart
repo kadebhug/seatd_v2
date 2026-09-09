@@ -24,6 +24,27 @@ class LocalWaiterStore {
     _emit(_state.copyWith(isOnline: isOnline));
   }
 
+  void hydrate({
+    LocationSnapshotResponse? snapshot,
+    List<WaiterCommand> commands = const [],
+  }) {
+    var next = _state.copyWith(
+      commands: commands
+          .map(
+            (command) => command.state == CommandState.sending
+                ? command.copyWith(state: CommandState.queued)
+                : command,
+          )
+          .toList(),
+    );
+    _state = next;
+    if (snapshot != null) {
+      mergeSnapshot(snapshot);
+      next = _state.copyWith(commands: _state.commands);
+    }
+    _emit(next);
+  }
+
   void beginSync() {
     _emit(_state.copyWith(isSyncing: true));
   }
@@ -67,6 +88,20 @@ class LocalWaiterStore {
       return _applyAssistRealtime(message);
     }
     return false;
+  }
+
+  void mergeSyncEvents(SyncEventsResponse response) {
+    for (final event in response.events) {
+      applyRealtimeMessage(event);
+    }
+    _emit(
+      _state.copyWith(
+        cursor: response.cursor,
+        lastSuccessfulSync: DateTime.now(),
+        isSyncing: false,
+        isOnline: true,
+      ),
+    );
   }
 
   WaiterCommand occupyTable(TableState table, {int? partySize}) {
@@ -182,10 +217,72 @@ class LocalWaiterStore {
     );
   }
 
+  void markCommandFailed(String id, String message) {
+    _replaceCommand(
+      id,
+      (command) => command.copyWith(
+        state: CommandState.failed,
+        retryCount: command.retryCount + 1,
+        message: message,
+      ),
+    );
+  }
+
+  void retryCommand(String id) {
+    _replaceCommand(
+      id,
+      (command) =>
+          command.copyWith(state: CommandState.queued, clearMessage: true),
+    );
+  }
+
+  void acceptCurrentState(String id) {
+    _replaceCommand(
+      id,
+      (command) => command.copyWith(state: CommandState.complete),
+    );
+  }
+
+  void retryConflictWithLatestVersion(String id) {
+    _replaceCommand(id, (command) {
+      final table = _state.tables
+          .where((item) => item.table.id == command.entityId)
+          .firstOrNull;
+      final assist = _state.assists
+          .where((item) => item.id == command.entityId)
+          .firstOrNull;
+      final latestVersion = table?.occupancy.version ?? assist?.version;
+      return command.copyWith(
+        expectedVersion: latestVersion,
+        state: CommandState.queued,
+        clearMessage: true,
+      );
+    });
+  }
+
+  void clearCompletedCommands() {
+    _emit(
+      _state.copyWith(
+        commands: [
+          for (final command in _state.commands)
+            if (command.state != CommandState.complete) command,
+        ],
+      ),
+    );
+  }
+
+  void clearCommands() {
+    _emit(_state.copyWith(commands: const []));
+  }
+
   void classifyCommandFailure(String id, SeatdApiError error) {
     final command = _state.commands.firstWhere((item) => item.id == id);
     final decision = classifyConflict(command, error, _state);
     if (decision.isRetryable) {
+      if (command.retryCount >= 2) {
+        markCommandFailed(id, decision.message);
+        return;
+      }
       _replaceCommand(
         id,
         (command) => command.copyWith(
@@ -426,6 +523,10 @@ class CommandProcessor {
       } on SeatdCommandException catch (error) {
         _store.classifyCommandFailure(command.id, error.error);
       } catch (error) {
+        if (command.retryCount >= 2) {
+          _store.markCommandFailed(command.id, error.toString());
+          continue;
+        }
         _store.classifyCommandFailure(
           command.id,
           SeatdApiError(

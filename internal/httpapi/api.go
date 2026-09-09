@@ -146,6 +146,9 @@ func NewHandler(cfg app.Config, logger *slog.Logger, pool *pgxpool.Pool, metrics
 	mux.HandleFunc("POST /v1/integrations/{id}/reconcile", api.reconcileIntegration)
 	mux.HandleFunc("POST /v1/integrations/{vendor}/webhooks", api.receiveIntegrationWebhook)
 	mux.HandleFunc("GET /v1/memberships", api.listMemberships)
+	mux.HandleFunc("POST /v1/memberships", api.createMembership)
+	mux.HandleFunc("PUT /v1/memberships/{scope}/{id}", api.updateMembershipRole)
+	mux.HandleFunc("POST /v1/memberships/{scope}/{id}/disable", api.disableMembership)
 	mux.HandleFunc("POST /v1/tables/{id}/occupy", api.occupyTable)
 	mux.HandleFunc("POST /v1/tables/{id}/clear", api.clearTable)
 	mux.HandleFunc("POST /v1/assists/{id}/acknowledge", api.acknowledgeAssist)
@@ -289,12 +292,29 @@ type deviceDTO struct {
 }
 
 type membershipDTO struct {
-	ID             string  `json:"id"`
-	Scope          string  `json:"scope"`
-	OrganisationID string  `json:"organisationId"`
-	LocationID     *string `json:"locationId,omitempty"`
-	MemberRef      string  `json:"memberRef"`
-	Role           string  `json:"role"`
+	ID             string   `json:"id"`
+	Scope          string   `json:"scope"`
+	OrganisationID string   `json:"organisationId"`
+	LocationID     *string  `json:"locationId,omitempty"`
+	UserProfileID  *string  `json:"userProfileId,omitempty"`
+	DisplayName    *string  `json:"displayName,omitempty"`
+	Email          *string  `json:"email,omitempty"`
+	MemberRef      string   `json:"memberRef"`
+	Role           string   `json:"role"`
+	DisabledAt     *string  `json:"disabledAt,omitempty"`
+	Permissions    []string `json:"permissions,omitempty"`
+}
+
+type createMembershipRequest struct {
+	Scope       string `json:"scope"`
+	LocationID  string `json:"locationId"`
+	Email       string `json:"email"`
+	DisplayName string `json:"displayName"`
+	Role        string `json:"role"`
+}
+
+type updateMembershipRoleRequest struct {
+	Role string `json:"role"`
 }
 
 type timelineEventDTO struct {
@@ -1508,19 +1528,97 @@ func (api *API) listMemberships(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	orgMemberships, locMemberships, err := api.listMembershipsForContext(r.Context(), ctx, identity.PermissionOrganisationManage)
+	includeDisabled := strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("includeDisabled")), "true")
+	memberships, err := api.ident.ListManagedMemberships(r.Context(), identityActor(ctx), includeDisabled)
 	if err != nil {
-		api.writeDBError(w, err)
+		api.writeIdentityError(w, err)
 		return
 	}
-	out := make([]membershipDTO, 0, len(orgMemberships)+len(locMemberships))
-	for _, membership := range orgMemberships {
-		out = append(out, organisationMembershipFromDB(membership))
-	}
-	for _, membership := range locMemberships {
-		out = append(out, locationMembershipFromDB(membership))
+	out := make([]membershipDTO, 0, len(memberships))
+	for _, membership := range memberships {
+		out = append(out, managedMembershipFromDomain(membership))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"memberships": out})
+}
+
+func (api *API) createMembership(w http.ResponseWriter, r *http.Request) {
+	ctx, ok := api.requestContext(w, r, false, true)
+	if !ok {
+		return
+	}
+	var req createMembershipRequest
+	if !decodeJSONBody(w, r, &req) {
+		return
+	}
+	var locationID uuid.UUID
+	if strings.TrimSpace(req.LocationID) != "" {
+		parsed, err := uuid.Parse(strings.TrimSpace(req.LocationID))
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "validation_failed", "locationId must be a UUID", nil)
+			return
+		}
+		locationID = parsed
+	}
+	membership, err := api.ident.CreateMembership(r.Context(), identity.CreateMembershipParams{
+		TenantActor: identityActor(ctx),
+		Scope:       req.Scope,
+		LocationID:  locationID,
+		Email:       req.Email,
+		DisplayName: req.DisplayName,
+		Role:        req.Role,
+	})
+	if err != nil {
+		api.writeIdentityError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, managedMembershipFromDomain(membership))
+}
+
+func (api *API) updateMembershipRole(w http.ResponseWriter, r *http.Request) {
+	ctx, ok := api.requestContext(w, r, false, true)
+	if !ok {
+		return
+	}
+	membershipID, ok := pathUUID(w, r, "id")
+	if !ok {
+		return
+	}
+	var req updateMembershipRoleRequest
+	if !decodeJSONBody(w, r, &req) {
+		return
+	}
+	membership, err := api.ident.UpdateMembershipRole(r.Context(), identity.UpdateMembershipRoleParams{
+		TenantActor: identityActor(ctx),
+		Scope:       r.PathValue("scope"),
+		ID:          membershipID,
+		Role:        req.Role,
+	})
+	if err != nil {
+		api.writeIdentityError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, managedMembershipFromDomain(membership))
+}
+
+func (api *API) disableMembership(w http.ResponseWriter, r *http.Request) {
+	ctx, ok := api.requestContext(w, r, false, true)
+	if !ok {
+		return
+	}
+	membershipID, ok := pathUUID(w, r, "id")
+	if !ok {
+		return
+	}
+	membership, err := api.ident.DisableMembership(r.Context(), identity.DisableMembershipParams{
+		TenantActor: identityActor(ctx),
+		Scope:       r.PathValue("scope"),
+		ID:          membershipID,
+	})
+	if err != nil {
+		api.writeIdentityError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, managedMembershipFromDomain(membership))
 }
 
 func (api *API) occupyTable(w http.ResponseWriter, r *http.Request) {
@@ -1717,6 +1815,10 @@ func (api *API) requestContext(w http.ResponseWriter, r *http.Request, requireLo
 			}
 			return api.authenticatedRequestContext(w, r, requireLocation, requireActor)
 		}
+	} else if hasBearerAuthorization(r) {
+		// Local OIDC sessions send Bearer credentials; prefer that path so
+		// development exercises the same auth as production.
+		return api.authenticatedRequestContext(w, r, requireLocation, requireActor)
 	}
 
 	orgID, ok := parseHeaderUUID(w, r, headerOrganisationID, true)
@@ -1750,6 +1852,12 @@ func hasClientIdentityHeaders(r *http.Request) bool {
 		strings.TrimSpace(r.Header.Get(headerDeviceID)) != ""
 }
 
+func hasBearerAuthorization(r *http.Request) bool {
+	value := strings.TrimSpace(r.Header.Get("Authorization"))
+	credential, ok := strings.CutPrefix(value, "Bearer ")
+	return ok && strings.TrimSpace(credential) != ""
+}
+
 func routeAuthPolicy(r *http.Request) authPolicy {
 	policy := authPolicy{
 		Permission:      routePermission(r),
@@ -1769,6 +1877,7 @@ func routeRequiresUser(r *http.Request) bool {
 	if strings.HasPrefix(path, "/v1/platform/") ||
 		strings.HasPrefix(path, "/v1/organisations/") ||
 		strings.HasPrefix(path, "/v1/devices") ||
+		strings.HasPrefix(path, "/v1/memberships") ||
 		strings.HasPrefix(path, "/v1/integrations") ||
 		strings.HasPrefix(path, "/v1/analytics") ||
 		strings.HasPrefix(path, "/v1/service-periods") ||
@@ -1873,7 +1982,7 @@ func routePermission(r *http.Request) string {
 	if strings.HasPrefix(path, "/v1/assists/") {
 		return identity.PermissionOperationsWrite
 	}
-	if path == "/v1/memberships" {
+	if strings.HasPrefix(path, "/v1/memberships") {
 		return identity.PermissionOrganisationManage
 	}
 	return ""
@@ -2089,7 +2198,9 @@ func (api *API) writeDomainError(w http.ResponseWriter, err error) {
 	case errors.Is(err, operations.ErrNotFound):
 		writeError(w, http.StatusNotFound, "not_found", "resource not found", nil)
 	default:
-		api.logger.Error("domain command failed", "error", err)
+		if api.logger != nil {
+			api.logger.Error("domain command failed", "error", err)
+		}
 		writeError(w, http.StatusInternalServerError, "internal_error", "internal server error", nil)
 	}
 }
@@ -2629,6 +2740,36 @@ func locationMembershipFromDB(membership db.LocationMembership) membershipDTO {
 		MemberRef:      membership.MemberRef,
 		Role:           membership.Role,
 	}
+}
+
+func managedMembershipFromDomain(membership identity.ManagedMembership) membershipDTO {
+	dto := membershipDTO{
+		ID:             membership.ID.String(),
+		Scope:          membership.Scope,
+		OrganisationID: membership.OrganisationID.String(),
+		MemberRef:      membership.MemberRef,
+		Role:           membership.Role,
+		Permissions:    append([]string(nil), membership.Permissions...),
+	}
+	if membership.LocationID != uuid.Nil {
+		locationID := membership.LocationID.String()
+		dto.LocationID = &locationID
+	}
+	if membership.UserProfileID != uuid.Nil {
+		userProfileID := membership.UserProfileID.String()
+		dto.UserProfileID = &userProfileID
+	}
+	if membership.DisplayName != "" {
+		dto.DisplayName = &membership.DisplayName
+	}
+	if membership.Email != "" {
+		dto.Email = &membership.Email
+	}
+	if membership.DisabledAt.Valid {
+		disabledAt := timeString(membership.DisabledAt)
+		dto.DisabledAt = &disabledAt
+	}
+	return dto
 }
 
 func analyticsSummaryFromDomain(summary analytics.Summary) analyticsSummaryDTO {

@@ -189,9 +189,10 @@ type OnboardOwnerResult struct {
 }
 
 type ResolveExternalIdentityParams struct {
-	DisplayName string
-	Email       string
-	External    ExternalIdentity
+	DisplayName   string
+	Email         string
+	EmailVerified bool
+	External      ExternalIdentity
 }
 
 func (s *Service) ResolveExternalIdentity(ctx context.Context, arg ResolveExternalIdentityParams) (UserProfileResult, error) {
@@ -224,9 +225,36 @@ func (s *Service) ResolveExternalIdentity(ctx context.Context, arg ResolveExtern
 			return fmt.Errorf("getting external identity: %w", err)
 		}
 
+		if arg.EmailVerified && arg.Email != "" {
+			normalizedEmail, err := normalizeEmail(arg.Email)
+			if err == nil {
+				existing, err := q.GetActiveUserProfileByEmail(ctx, nullableText(normalizedEmail))
+				if err == nil {
+					external, err := q.LinkExternalIdentity(ctx, db.LinkExternalIdentityParams{
+						UserProfileID: existing.ID,
+						Issuer:        arg.External.Issuer,
+						Subject:       arg.External.Subject,
+						Email:         nullableText(arg.External.Email),
+					})
+					if err != nil {
+						return fmt.Errorf("linking invited external identity: %w", err)
+					}
+					result = UserProfileResult{User: existing, External: external}
+					return nil
+				}
+				if !errors.Is(err, pgx.ErrNoRows) {
+					return fmt.Errorf("getting invited user profile by email: %w", err)
+				}
+			}
+		}
+
+		profileEmail := arg.Email
+		if !arg.EmailVerified {
+			profileEmail = ""
+		}
 		created, err := q.CreateUserProfile(ctx, db.CreateUserProfileParams{
 			DisplayName: arg.DisplayName,
-			Email:       nullableText(arg.Email),
+			Email:       nullableText(profileEmail),
 		})
 		if err != nil {
 			return fmt.Errorf("creating user profile: %w", err)

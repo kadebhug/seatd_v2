@@ -1,11 +1,11 @@
 {
-    "name": "seatd_waiter",
-    "short_name": "seatd_waiter",
+    "name": "Seatd Waiter",
+    "short_name": "Waiter",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "Seatd waiter operations application.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

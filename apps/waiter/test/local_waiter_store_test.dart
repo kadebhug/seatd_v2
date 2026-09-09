@@ -62,6 +62,32 @@ void main() {
 
     expect(store.state.commands.single.state, CommandState.conflict);
   });
+
+  test(
+    'retryable failures become manually retryable after repeated attempts',
+    () {
+      final store = LocalWaiterStore();
+      store.mergeSnapshot(_snapshot(tableVersion: 1, status: 'available'));
+      final command = store.occupyTable(store.state.tables.single);
+
+      for (var i = 0; i < 3; i++) {
+        store.classifyCommandFailure(
+          command.id,
+          const SeatdApiError(
+            code: SeatdErrorCode.rateLimited,
+            message: 'try again later',
+          ),
+        );
+      }
+
+      expect(store.state.commands.single.state, CommandState.failed);
+
+      store.retryCommand(command.id);
+
+      expect(store.state.commands.single.state, CommandState.queued);
+      expect(store.state.commands.single.message, isNull);
+    },
+  );
 }
 
 const _tableId = '55555555-5555-5555-5555-555555555551';

@@ -14,6 +14,7 @@ const ownerNav = [
   { href: "/owner/configuration", label: "Configuration" },
   { href: "/owner/layout", label: "Floor editor" },
   { href: "/owner/devices", label: "Devices" },
+  { href: "/owner/members", label: "Members" },
   { href: "/owner/integrations", label: "Integrations" },
 ];
 

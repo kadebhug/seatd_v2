@@ -1154,6 +1154,49 @@ html {
   margin-bottom: 4px;
 }
 
+.members-grid {
+  align-items: start;
+  grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+}
+
+.member-list {
+  display: grid;
+  gap: 14px;
+}
+
+.member-card {
+  display: grid;
+  gap: 16px;
+}
+
+.member-title-row,
+.member-actions {
+  align-items: center;
+  display: grid;
+  gap: 12px;
+}
+
+.member-title-row {
+  grid-template-columns: max-content minmax(0, 1fr);
+}
+
+.member-title-row h2,
+.member-title-row p {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.member-title-row p {
+  color: var(--seatd-muted);
+}
+
+.member-actions {
+  grid-template-columns: minmax(180px, 260px) max-content;
+}
+
 .marketing-page {
   background:
     radial-gradient(
@@ -2056,6 +2099,7 @@ html[data-reveal-ready="true"] [data-reveal][data-visible="true"],
 @media (max-width: 980px) {
   .app-shell,
   .editor-grid,
+  .members-grid,
   .grid.two,
   .platform-console,
   .metric-strip,
@@ -2075,6 +2119,7 @@ html[data-reveal-ready="true"] [data-reveal][data-visible="true"],
   .comparison-row,
   .service-period-row,
   .weekday-picker,
+  .member-actions,
   .mapping-row,
   .webhook-row,
   .discrepancy-row {

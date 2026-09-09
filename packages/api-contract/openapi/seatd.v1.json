@@ -956,9 +956,61 @@
         }
       }
     },
+    "/v1/realtime": {
+      "get": {
+        "operationId": "connectRealtime",
+        "summary": "Connect to realtime operational events",
+        "description": "HTTP WebSocket upgrade endpoint. Clients authenticate either with Authorization: Bearer <device credential> or with the organisation, location, actor, and device headers. After a successful 101 response, the server sends JSON text frames matching RealtimeMessage. Delivery is scoped to the requested location. Clients must ignore duplicate events by eventId, ignore stale entity updates by comparing version, and recover by loading /v1/sync/location-snapshot before reconnecting when the socket closes.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/BearerAuthorizationHeaderOptional"
+          },
+          {
+            "$ref": "#/components/parameters/OrganisationHeaderOptional"
+          },
+          {
+            "$ref": "#/components/parameters/LocationHeaderOptional"
+          },
+          {
+            "$ref": "#/components/parameters/ActorHeaderOptional"
+          },
+          {
+            "$ref": "#/components/parameters/DeviceHeader"
+          }
+        ],
+        "responses": {
+          "101": {
+            "description": "WebSocket connection established. Text frames contain RealtimeMessage JSON payloads.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RealtimeMessage"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "401": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "503": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
     "/v1/sync/location-snapshot": {
       "get": {
         "operationId": "getLocationSnapshot",
+        "description": "Returns the authoritative location state and an opaque cursor for realtime recovery.",
         "parameters": [
           {
             "$ref": "#/components/parameters/OrganisationHeader"
@@ -986,6 +1038,7 @@
     "/v1/sync/events": {
       "get": {
         "operationId": "listSyncEvents",
+        "description": "Returns realtime delivery messages newer than an opaque cursor. Clients should process events in response order and persist the returned cursor after successful processing.",
         "parameters": [
           {
             "$ref": "#/components/parameters/OrganisationHeader"
@@ -1002,6 +1055,7 @@
           {
             "name": "after",
             "in": "query",
+            "description": "Opaque cursor returned by a previous location snapshot or sync events response.",
             "required": false,
             "schema": {
               "type": "string"
@@ -1022,6 +1076,21 @@
         "responses": {
           "200": {
             "$ref": "#/components/responses/SyncEventsResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/realtime/metrics": {
+      "get": {
+        "operationId": "getRealtimeMetrics",
+        "summary": "Get realtime hub metrics",
+        "description": "Returns the realtime hub JSON metrics snapshot for active connections, published messages, drops, and backpressure closes.",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/RealtimeMetricsResponse"
           },
           "default": {
             "$ref": "#/components/responses/ErrorResponse"
@@ -1212,11 +1281,56 @@
           },
           {
             "$ref": "#/components/parameters/LocationHeaderOptional"
+          },
+          {
+            "name": "includeDisabled",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
           }
         ],
         "responses": {
           "200": {
             "$ref": "#/components/responses/MembershipsResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createMembership",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/LocationHeaderOptional"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMembershipRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Membership",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Membership"
+                }
+              }
+            }
           },
           "default": {
             "$ref": "#/components/responses/ErrorResponse"
@@ -2141,6 +2255,114 @@
           }
         }
       }
+    },
+    "/v1/memberships/{scope}/{id}": {
+      "put": {
+        "operationId": "updateMembershipRole",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/LocationHeaderOptional"
+          },
+          {
+            "name": "scope",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "organisation",
+                "location"
+              ]
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMembershipRoleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Membership",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Membership"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/memberships/{scope}/{id}/disable": {
+      "post": {
+        "operationId": "disableMembership",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrganisationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/LocationHeaderOptional"
+          },
+          {
+            "name": "scope",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "organisation",
+                "location"
+              ]
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Membership",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Membership"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2149,6 +2371,15 @@
         "name": "X-Seatd-Organisation-ID",
         "in": "header",
         "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "OrganisationHeaderOptional": {
+        "name": "X-Seatd-Organisation-ID",
+        "in": "header",
+        "required": false,
         "schema": {
           "type": "string",
           "format": "uuid"
@@ -2181,10 +2412,28 @@
           "minLength": 1
         }
       },
+      "ActorHeaderOptional": {
+        "name": "X-Seatd-Actor-Ref",
+        "in": "header",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
       "BearerAuthorizationHeader": {
         "name": "Authorization",
         "in": "header",
         "required": true,
+        "schema": {
+          "type": "string",
+          "pattern": "^Bearer .+"
+        }
+      },
+      "BearerAuthorizationHeaderOptional": {
+        "name": "Authorization",
+        "in": "header",
+        "required": false,
         "schema": {
           "type": "string",
           "pattern": "^Bearer .+"
@@ -2625,6 +2874,16 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/SyncEventsResponse"
+            }
+          }
+        }
+      },
+      "RealtimeMetricsResponse": {
+        "description": "Realtime hub metrics snapshot",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/RealtimeMetricsResponse"
             }
           }
         }
@@ -4042,6 +4301,7 @@
         "required": [
           "id",
           "scope",
+          "organisationId",
           "memberRef",
           "role"
         ],
@@ -4066,6 +4326,31 @@
           },
           "role": {
             "type": "string"
+          },
+          "organisationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "userProfileId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "disabledAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -4087,7 +4372,19 @@
             "format": "uuid"
           },
           "type": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "table.occupied",
+              "table.cleared",
+              "session.opened",
+              "session.closed",
+              "assist.requested",
+              "assist.acknowledged",
+              "assist.resolved",
+              "assist.cancelled",
+              "device.registered",
+              "device.revoked"
+            ]
           },
           "schemaVersion": {
             "type": "integer"
@@ -4136,7 +4433,19 @@
         ],
         "properties": {
           "type": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "table.occupied",
+              "table.cleared",
+              "session.opened",
+              "session.closed",
+              "assist.requested",
+              "assist.acknowledged",
+              "assist.resolved",
+              "assist.cancelled",
+              "device.registered",
+              "device.revoked"
+            ]
           },
           "eventId": {
             "type": "string",
@@ -4158,7 +4467,8 @@
             "format": "uuid"
           },
           "version": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Entity version used by clients to ignore stale updates."
           },
           "occurredAt": {
             "type": "string",
@@ -4166,6 +4476,43 @@
           },
           "data": {
             "type": "object"
+          }
+        }
+      },
+      "RealtimeMetricsResponse": {
+        "type": "object",
+        "required": [
+          "activeConnections",
+          "connectionsAccepted",
+          "connectionsClosed",
+          "messagesPublished",
+          "messagesDropped",
+          "backpressureCloses"
+        ],
+        "properties": {
+          "activeConnections": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "connectionsAccepted": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "connectionsClosed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "messagesPublished": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "messagesDropped": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "backpressureCloses": {
+            "type": "integer",
+            "minimum": 0
           }
         }
       },
@@ -4272,7 +4619,8 @@
             "format": "uuid"
           },
           "cursor": {
-            "type": "string"
+            "type": "string",
+            "description": "Opaque base64url cursor for realtime recovery. Empty when no cursor is available."
           },
           "tables": {
             "type": "array",
@@ -4302,7 +4650,8 @@
             }
           },
           "cursor": {
-            "type": "string"
+            "type": "string",
+            "description": "Opaque base64url cursor to persist after successfully processing the returned events."
           }
         }
       },
@@ -5428,6 +5777,63 @@
         "properties": {
           "reconciliationRun": {
             "$ref": "#/components/schemas/IntegrationReconciliationRun"
+          }
+        }
+      },
+      "CreateMembershipRequest": {
+        "type": "object",
+        "required": [
+          "scope",
+          "email",
+          "role"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "scope": {
+            "type": "string",
+            "enum": [
+              "organisation",
+              "location"
+            ]
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "minLength": 3
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "organisation_owner",
+              "location_manager",
+              "waiter",
+              "read_only"
+            ]
+          }
+        }
+      },
+      "UpdateMembershipRoleRequest": {
+        "type": "object",
+        "required": [
+          "role"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "organisation_owner",
+              "location_manager",
+              "waiter",
+              "read_only"
+            ]
           }
         }
       }

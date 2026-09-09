@@ -19,6 +19,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/kadebhug/seatd_v2/internal/app"
+	"github.com/kadebhug/seatd_v2/internal/domain/identity"
 	"go.opentelemetry.io/otel/attribute"
 )
 
@@ -218,12 +219,25 @@ func (h *Handler) getMetrics(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (h *Handler) authorizeRequest(w http.ResponseWriter, r *http.Request) (requestContext, bool) {
-	req, ok := parseRequestContext(w, r)
-	if !ok {
-		return requestContext{}, false
-	}
 	if h.pool == nil {
 		writeError(w, http.StatusServiceUnavailable, "database_unavailable", "database is unavailable", nil)
+		return requestContext{}, false
+	}
+	authHeader := strings.TrimSpace(r.Header.Get("Authorization"))
+	if credential := bearerCredential(r); credential != "" {
+		req, ok := h.authorizeBearerDevice(w, r, credential)
+		if !ok {
+			return requestContext{}, false
+		}
+		return req, true
+	}
+	if authHeader != "" {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "realtime authorization failed", nil)
+		return requestContext{}, false
+	}
+
+	req, ok := parseRequestContext(w, r)
+	if !ok {
 		return requestContext{}, false
 	}
 	if err := h.authorize(r.Context(), req); err != nil {
@@ -235,6 +249,37 @@ func (h *Handler) authorizeRequest(w http.ResponseWriter, r *http.Request) (requ
 		default:
 			h.writeDBError(w, err)
 		}
+		return requestContext{}, false
+	}
+	return req, true
+}
+
+func (h *Handler) authorizeBearerDevice(w http.ResponseWriter, r *http.Request, credential string) (requestContext, bool) {
+	device, err := identity.NewService(h.pool).AuthenticateDeviceCredential(r.Context(), credential)
+	if err != nil {
+		if errors.Is(err, identity.ErrUnauthorized) {
+			writeError(w, http.StatusUnauthorized, "unauthorized", "realtime authorization failed", nil)
+			return requestContext{}, false
+		}
+		h.writeDBError(w, err)
+		return requestContext{}, false
+	}
+	if !device.LocationID.Valid {
+		writeError(w, http.StatusForbidden, "forbidden", "device is not assigned to a location", nil)
+		return requestContext{}, false
+	}
+	if !deviceAllowsOperationsRead(device.DeviceType) {
+		writeError(w, http.StatusForbidden, "forbidden", "realtime access is not allowed", nil)
+		return requestContext{}, false
+	}
+	req := requestContext{
+		OrganisationID: device.OrganisationID,
+		LocationID:     device.LocationID.UUID,
+		ActorRef:       "device:" + device.ID.String(),
+		DeviceID:       device.ID,
+	}
+	if err := h.markDeviceSeen(r.Context(), req); err != nil {
+		h.writeDBError(w, err)
 		return requestContext{}, false
 	}
 	return req, true
@@ -325,6 +370,28 @@ WHERE id = $1 AND organisation_id = $2
 	return nil
 }
 
+func (h *Handler) markDeviceSeen(ctx context.Context, req requestContext) error {
+	tx, err := h.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return fmt.Errorf("beginning device seen transaction: %w", err)
+	}
+	if _, err := tx.Exec(ctx, "SELECT set_config('seatd.platform_admin', 'true', true)"); err != nil {
+		return rollback(tx, ctx, fmt.Errorf("setting authorization database context: %w", err))
+	}
+	if _, err := tx.Exec(ctx, `
+UPDATE devices
+SET last_seen_at = now(),
+    updated_at = now()
+WHERE id = $1 AND organisation_id = $2
+`, req.DeviceID, req.OrganisationID); err != nil {
+		return rollback(tx, ctx, fmt.Errorf("marking realtime device seen: %w", err))
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("committing device seen transaction: %w", err)
+	}
+	return nil
+}
+
 func (h *Handler) inTenantTx(ctx context.Context, req requestContext, fn func(pgx.Tx) error) error {
 	tx, err := h.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
@@ -344,6 +411,27 @@ SELECT set_config('seatd.platform_admin', 'false', true),
 		return fmt.Errorf("committing transaction: %w", err)
 	}
 	return nil
+}
+
+func bearerCredential(r *http.Request) string {
+	value := strings.TrimSpace(r.Header.Get("Authorization"))
+	if value == "" {
+		return ""
+	}
+	scheme, credential, ok := strings.Cut(value, " ")
+	if !ok || !strings.EqualFold(scheme, "Bearer") {
+		return ""
+	}
+	return strings.TrimSpace(credential)
+}
+
+func deviceAllowsOperationsRead(deviceType string) bool {
+	switch deviceType {
+	case identity.DeviceTypeDisplay, identity.DeviceTypeWaiterMobile, identity.DeviceTypeManagerTablet, identity.DeviceTypeHostDevice:
+		return true
+	default:
+		return false
+	}
 }
 
 func parseRequestContext(w http.ResponseWriter, r *http.Request) (requestContext, bool) {

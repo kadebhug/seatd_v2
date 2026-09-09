@@ -638,7 +638,9 @@ function nextStepMessage(message: string) {
   if (/try again|ask staff|moment/i.test(trimmed)) {
     return trimmed;
   }
-  return `${trimmed} Try again in a moment.`;
+  const sentence = trimmed.replace(/^[a-z]/, (letter) => letter.toUpperCase());
+  const separator = /[.!?]$/.test(sentence) ? " " : ". ";
+  return `${sentence}${separator}Try again in a moment.`;
 }
 
 async function loadGuestContext(token: string): Promise<GuestContext> {

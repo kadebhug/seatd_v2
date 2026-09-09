@@ -16,6 +16,12 @@ INSERT INTO user_profiles (display_name, email)
 VALUES ($1, $2)
 RETURNING *;
 
+-- name: GetActiveUserProfileByEmail :one
+SELECT *
+FROM user_profiles
+WHERE lower(btrim(email)) = $1
+  AND status = 'active';
+
 -- name: LinkExternalIdentity :one
 INSERT INTO external_identities (user_profile_id, issuer, subject, email)
 VALUES ($1, $2, $3, $4)

@@ -7,7 +7,7 @@ const specPath = resolve(scriptDir, "../../api-contract/openapi/seatd.v1.json");
 const outPath = resolve(scriptDir, "../lib/seatd_client.dart");
 const spec = JSON.parse(readFileSync(specPath, "utf8"));
 
-for (const name of ["ServiceStatus", "LocationSnapshotResponse", "SyncEventsResponse"]) {
+for (const name of ["ServiceStatus", "LocationSnapshotResponse", "SyncEventsResponse", "RealtimeMetricsResponse"]) {
   if (!spec.components?.schemas?.[name]) {
     throw new Error(`missing ${name} schema`);
   }
@@ -31,6 +31,7 @@ const assistsEndpoint = '/v1/assists';
 const locationSnapshotEndpoint = '/v1/sync/location-snapshot';
 const syncEventsEndpoint = '/v1/sync/events';
 const realtimeEndpoint = '/v1/realtime';
+const realtimeMetricsEndpoint = '/v1/realtime/metrics';
 const auditTimelineEndpoint = '/v1/audit/timeline';
 const analyticsSummaryEndpoint = '/v1/analytics/summary';
 const analyticsTimeseriesEndpoint = '/v1/analytics/timeseries';
@@ -566,6 +567,28 @@ class RealtimeMessage {
   final int? version;
   final String occurredAt;
   final Map<String, Object?> data;
+}
+
+class RealtimeMetricsResponse {
+  const RealtimeMetricsResponse({required this.activeConnections, required this.connectionsAccepted, required this.connectionsClosed, required this.messagesPublished, required this.messagesDropped, required this.backpressureCloses});
+
+  factory RealtimeMetricsResponse.fromJson(Map<String, Object?> json) => RealtimeMetricsResponse(
+        activeConnections: json['activeConnections'] as int,
+        connectionsAccepted: json['connectionsAccepted'] as int,
+        connectionsClosed: json['connectionsClosed'] as int,
+        messagesPublished: json['messagesPublished'] as int,
+        messagesDropped: json['messagesDropped'] as int,
+        backpressureCloses: json['backpressureCloses'] as int,
+      );
+
+  factory RealtimeMetricsResponse.fromJsonString(String source) => RealtimeMetricsResponse.fromJson(jsonDecode(source) as Map<String, Object?>);
+
+  final int activeConnections;
+  final int connectionsAccepted;
+  final int connectionsClosed;
+  final int messagesPublished;
+  final int messagesDropped;
+  final int backpressureCloses;
 }
 
 class AuditTimelineResponse {

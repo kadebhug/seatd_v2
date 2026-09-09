@@ -498,6 +498,27 @@ func (q *Queries) GetActiveTableQRCapabilityByHash(ctx context.Context, arg GetA
 	return i, err
 }
 
+const getActiveUserProfileByEmail = `-- name: GetActiveUserProfileByEmail :one
+SELECT id, display_name, email, status, created_at, updated_at
+FROM user_profiles
+WHERE lower(btrim(email)) = $1
+  AND status = 'active'
+`
+
+func (q *Queries) GetActiveUserProfileByEmail(ctx context.Context, email pgtype.Text) (UserProfile, error) {
+	row := q.db.QueryRow(ctx, getActiveUserProfileByEmail, email)
+	var i UserProfile
+	err := row.Scan(
+		&i.ID,
+		&i.DisplayName,
+		&i.Email,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getDevice = `-- name: GetDevice :one
 SELECT id, organisation_id, location_id, user_profile_id, device_type, platform, app_version, trust_state, registered_at, last_seen_at, revoked_at, created_at, updated_at, name, capabilities, configuration, assigned_at, last_heartbeat_at, heartbeat_interval_seconds
 FROM devices

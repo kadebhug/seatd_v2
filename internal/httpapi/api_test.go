@@ -71,6 +71,23 @@ func TestOwnerSnapshotRequiresActor(t *testing.T) {
 	assertAPIError(t, rec, http.StatusBadRequest, "validation_failed")
 }
 
+func TestLocalRequestContextPrefersBearerOverTrustedHeaders(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(app.Config{}, nil, nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/owner/snapshot", nil)
+	req.Header.Set(headerOrganisationID, "11111111-1111-1111-1111-111111111111")
+	req.Header.Set("Authorization", "Bearer short-secret")
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	// Bearer is present, so local/dev must use session auth instead of requiring
+	// X-Seatd-Actor-Ref. An invalid short secret fails as unauthorized.
+	assertAPIError(t, rec, http.StatusUnauthorized, "unauthorized")
+	assertAPIErrorMessage(t, rec, "credential is invalid")
+}
+
 func TestProductionRequestContextRejectsForgedIdentityHeaders(t *testing.T) {
 	t.Parallel()
 
@@ -212,6 +229,24 @@ func TestRoutePermissionForTenantReadSurfaces(t *testing.T) {
 			want:   identity.PermissionOrganisationManage,
 		},
 		{
+			name:   "membership create",
+			method: http.MethodPost,
+			path:   "/v1/memberships",
+			want:   identity.PermissionOrganisationManage,
+		},
+		{
+			name:   "membership role update",
+			method: http.MethodPut,
+			path:   "/v1/memberships/location/55555555-5555-5555-5555-555555555551",
+			want:   identity.PermissionOrganisationManage,
+		},
+		{
+			name:   "membership disable",
+			method: http.MethodPost,
+			path:   "/v1/memberships/location/55555555-5555-5555-5555-555555555551/disable",
+			want:   identity.PermissionOrganisationManage,
+		},
+		{
 			name:   "platform tenant search",
 			method: http.MethodGet,
 			path:   "/v1/platform/tenants",
@@ -282,6 +317,32 @@ func TestProductionOIDCSessionCreationRequiresInternalSecret(t *testing.T) {
 	handler.ServeHTTP(rec, req)
 
 	assertAPIError(t, rec, http.StatusUnauthorized, "unauthorized")
+}
+
+func TestLocationsForSessionWithoutMembershipsMarshalsEmptyArray(t *testing.T) {
+	t.Parallel()
+
+	api := &API{}
+	req := httptest.NewRequest(http.MethodGet, "/v1/auth/session", nil)
+	locations := api.locationsForSession(req, identity.WebSession{})
+	raw, err := json.Marshal(webSessionDTO{
+		ID:          "session",
+		Memberships: membershipDTOs(nil),
+		Locations:   locations,
+	})
+	if err != nil {
+		t.Fatalf("marshal web session: %v", err)
+	}
+	var payload map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		t.Fatalf("unmarshal web session: %v", err)
+	}
+	if string(payload["locations"]) != "[]" {
+		t.Fatalf("locations = %s, want []", payload["locations"])
+	}
+	if string(payload["memberships"]) != "[]" {
+		t.Fatalf("memberships = %s, want []", payload["memberships"])
+	}
 }
 
 func TestDeviceHeartbeatRequiresBearerCredential(t *testing.T) {

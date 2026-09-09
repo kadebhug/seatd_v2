@@ -5,9 +5,14 @@ import '../../../../domain/waiter_models.dart';
 import '../view_models/floor_view_model.dart';
 
 class FloorScreen extends StatefulWidget {
-  const FloorScreen({super.key, required this.viewModel});
+  const FloorScreen({
+    super.key,
+    required this.viewModel,
+    required this.onForgetDevice,
+  });
 
   final FloorViewModel viewModel;
+  final Future<void> Function() onForgetDevice;
 
   @override
   State<FloorScreen> createState() => _FloorScreenState();
@@ -21,6 +26,12 @@ class _FloorScreenState extends State<FloorScreen> {
   }
 
   @override
+  void dispose() {
+    widget.viewModel.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: widget.viewModel,
@@ -31,9 +42,27 @@ class _FloorScreenState extends State<FloorScreen> {
             title: const Text('Seatd Waiter'),
             actions: [
               IconButton(
+                tooltip: 'Command queue',
+                onPressed: () => _showCommandQueue(context, model),
+                icon: const Icon(Icons.pending_actions),
+              ),
+              IconButton(
                 tooltip: 'Sync',
-                onPressed: model.bootstrap,
+                onPressed: () => model.resync(forceSnapshot: true),
                 icon: const Icon(Icons.sync),
+              ),
+              PopupMenuButton<String>(
+                onSelected: (value) {
+                  if (value == 'forget') {
+                    _confirmForgetDevice(context);
+                  }
+                },
+                itemBuilder: (context) => const [
+                  PopupMenuItem(
+                    value: 'forget',
+                    child: Text('Forget this device'),
+                  ),
+                ],
               ),
             ],
           ),
@@ -70,6 +99,31 @@ class _FloorScreenState extends State<FloorScreen> {
         );
       },
     );
+  }
+
+  Future<void> _confirmForgetDevice(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Forget this device?'),
+        content: const Text(
+          'Credentials and queued waiter actions will be cleared.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Forget'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await widget.onForgetDevice();
+    }
   }
 }
 
@@ -111,14 +165,121 @@ class _SyncBanner extends StatelessWidget {
           if (state.commands.any(
             (command) => command.state != CommandState.complete,
           ))
-            Text(
-              '${state.commands.where((command) => command.state != CommandState.complete).length} pending',
+            TextButton.icon(
+              onPressed: () => _showCommandQueue(context, model),
+              icon: const Icon(Icons.pending_actions, size: 18),
+              label: Text(
+                '${state.commands.where((command) => command.state != CommandState.complete).length} pending',
+              ),
             ),
         ],
       ),
     );
   }
 }
+
+void _showCommandQueue(BuildContext context, FloorViewModel model) {
+  showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    builder: (context) => ListenableBuilder(
+      listenable: model,
+      builder: (context, _) {
+        final commands = model.state.commands
+            .where((command) => command.state != CommandState.complete)
+            .toList();
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Command queue',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: model.clearCompletedCommands,
+                      icon: const Icon(Icons.cleaning_services),
+                      label: const Text('Clear done'),
+                    ),
+                  ],
+                ),
+                if (commands.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 20),
+                    child: Text('No queued commands'),
+                  ),
+                for (final command in commands)
+                  _CommandQueueTile(command: command, model: model),
+              ],
+            ),
+          ),
+        );
+      },
+    ),
+  );
+}
+
+class _CommandQueueTile extends StatelessWidget {
+  const _CommandQueueTile({required this.command, required this.model});
+
+  final WaiterCommand command;
+  final FloorViewModel model;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final isConflict = command.state == CommandState.conflict;
+    final canRetry =
+        command.state == CommandState.failed ||
+        command.state == CommandState.conflict;
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(switch (command.state) {
+        CommandState.queued => Icons.schedule,
+        CommandState.sending => Icons.sync,
+        CommandState.conflict => Icons.report_problem,
+        CommandState.failed => Icons.error,
+        CommandState.complete => Icons.check,
+      }, color: isConflict ? scheme.error : null),
+      title: Text(_commandLabel(command)),
+      subtitle: Text(command.message ?? commandStateToWire(command.state)),
+      trailing: Wrap(
+        spacing: 4,
+        children: [
+          if (isConflict)
+            IconButton(
+              tooltip: 'Accept current state',
+              onPressed: () => model.acceptCurrentState(command),
+              icon: const Icon(Icons.done_all),
+            ),
+          if (canRetry)
+            IconButton(
+              tooltip: isConflict ? 'Retry with latest version' : 'Retry',
+              onPressed: () => isConflict
+                  ? model.retryConflictWithLatestVersion(command)
+                  : model.retryCommand(command),
+              icon: const Icon(Icons.refresh),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+String _commandLabel(WaiterCommand command) => switch (command.type) {
+  CommandType.occupyTable => 'Occupy table',
+  CommandType.clearTable => 'Clear table',
+  CommandType.acknowledgeAssist => 'Acknowledge assist',
+  CommandType.resolveAssist => 'Resolve assist',
+  CommandType.cancelAssist => 'Cancel assist',
+};
 
 class _FloorFilters extends StatelessWidget {
   const _FloorFilters({required this.model});

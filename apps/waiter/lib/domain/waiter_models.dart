@@ -13,7 +13,41 @@ enum CommandType {
   cancelAssist,
 }
 
+CommandType commandTypeFromWire(String value) => switch (value) {
+  'occupyTable' => CommandType.occupyTable,
+  'clearTable' => CommandType.clearTable,
+  'acknowledgeAssist' => CommandType.acknowledgeAssist,
+  'resolveAssist' => CommandType.resolveAssist,
+  'cancelAssist' => CommandType.cancelAssist,
+  _ => throw FormatException('unknown command type: $value'),
+};
+
+String commandTypeToWire(CommandType value) => switch (value) {
+  CommandType.occupyTable => 'occupyTable',
+  CommandType.clearTable => 'clearTable',
+  CommandType.acknowledgeAssist => 'acknowledgeAssist',
+  CommandType.resolveAssist => 'resolveAssist',
+  CommandType.cancelAssist => 'cancelAssist',
+};
+
 enum CommandState { queued, sending, complete, conflict, failed }
+
+CommandState commandStateFromWire(String value) => switch (value) {
+  'queued' => CommandState.queued,
+  'sending' => CommandState.sending,
+  'complete' => CommandState.complete,
+  'conflict' => CommandState.conflict,
+  'failed' => CommandState.failed,
+  _ => throw FormatException('unknown command state: $value'),
+};
+
+String commandStateToWire(CommandState value) => switch (value) {
+  CommandState.queued => 'queued',
+  CommandState.sending => 'sending',
+  CommandState.complete => 'complete',
+  CommandState.conflict => 'conflict',
+  CommandState.failed => 'failed',
+};
 
 class WaiterCommand {
   const WaiterCommand({
@@ -39,19 +73,47 @@ class WaiterCommand {
   final String? message;
 
   WaiterCommand copyWith({
+    int? expectedVersion,
     int? retryCount,
     CommandState? state,
     String? message,
+    bool clearMessage = false,
   }) => WaiterCommand(
     id: id,
     type: type,
     entityId: entityId,
     payload: payload,
-    expectedVersion: expectedVersion,
+    expectedVersion: expectedVersion ?? this.expectedVersion,
     createdAt: createdAt,
     retryCount: retryCount ?? this.retryCount,
     state: state ?? this.state,
-    message: message ?? this.message,
+    message: clearMessage ? null : message ?? this.message,
+  );
+
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'type': commandTypeToWire(type),
+    'entityId': entityId,
+    'payload': payload,
+    'expectedVersion': expectedVersion,
+    'createdAt': createdAt.toUtc().toIso8601String(),
+    'retryCount': retryCount,
+    'state': commandStateToWire(state),
+    if (message != null) 'message': message,
+  };
+
+  factory WaiterCommand.fromJson(Map<String, Object?> json) => WaiterCommand(
+    id: json['id'] as String,
+    type: commandTypeFromWire(json['type'] as String),
+    entityId: json['entityId'] as String,
+    payload:
+        (json['payload'] as Map<Object?, Object?>?)?.cast<String, Object?>() ??
+        const {},
+    expectedVersion: json['expectedVersion'] as int,
+    createdAt: DateTime.parse(json['createdAt'] as String),
+    retryCount: json['retryCount'] as int? ?? 0,
+    state: commandStateFromWire(json['state'] as String? ?? 'queued'),
+    message: json['message'] as String?,
   );
 }
 
@@ -126,4 +188,67 @@ class ConflictDecision {
   final String message;
   final bool isRetryable;
   final bool isConflict;
+}
+
+class WaiterSession {
+  const WaiterSession({
+    required this.credential,
+    required this.deviceId,
+    required this.organisationId,
+    required this.locationId,
+    required this.deviceName,
+    required this.heartbeatIntervalSeconds,
+  });
+
+  factory WaiterSession.fromPairing({
+    required String credential,
+    required Device device,
+  }) => WaiterSession(
+    credential: credential,
+    deviceId: device.id,
+    organisationId: device.organisationId,
+    locationId: device.locationId ?? '',
+    deviceName: device.name ?? 'Waiter device',
+    heartbeatIntervalSeconds: device.heartbeatIntervalSeconds,
+  );
+
+  factory WaiterSession.fromJson(Map<String, Object?> json) => WaiterSession(
+    credential: json['credential'] as String,
+    deviceId: json['deviceId'] as String,
+    organisationId: json['organisationId'] as String,
+    locationId: json['locationId'] as String,
+    deviceName: json['deviceName'] as String? ?? 'Waiter device',
+    heartbeatIntervalSeconds: json['heartbeatIntervalSeconds'] as int? ?? 60,
+  );
+
+  final String credential;
+  final String deviceId;
+  final String organisationId;
+  final String locationId;
+  final String deviceName;
+  final int heartbeatIntervalSeconds;
+
+  Map<String, Object?> toJson() => {
+    'credential': credential,
+    'deviceId': deviceId,
+    'organisationId': organisationId,
+    'locationId': locationId,
+    'deviceName': deviceName,
+    'heartbeatIntervalSeconds': heartbeatIntervalSeconds,
+  };
+
+  WaiterSession copyWith({Device? device}) {
+    final next = device;
+    if (next == null) {
+      return this;
+    }
+    return WaiterSession(
+      credential: credential,
+      deviceId: next.id,
+      organisationId: next.organisationId,
+      locationId: next.locationId ?? locationId,
+      deviceName: next.name ?? deviceName,
+      heartbeatIntervalSeconds: next.heartbeatIntervalSeconds,
+    );
+  }
 }

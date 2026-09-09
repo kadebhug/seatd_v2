@@ -2,20 +2,31 @@
 
 Seatd realtime is a delivery layer for committed operational events. PostgreSQL and the HTTP APIs remain the source of truth.
 
+The endpoint, header, sync recovery, and metrics contracts are defined in
+`packages/api-contract/openapi/seatd.v1.json`. Committed operational event
+compatibility and event type names are defined in
+`packages/event-schema/schemas/v1/operational-event.schema.json`.
+
 ## Authentication
 
 Clients connect with an HTTP WebSocket upgrade:
 
 `GET /v1/realtime`
 
-Required headers:
+Clients may authenticate with `Authorization: Bearer <device credential>`.
+During the current development identity phase, clients may also authenticate
+with these headers:
 
 - `X-Seatd-Organisation-ID`
 - `X-Seatd-Location-ID`
 - `X-Seatd-Actor-Ref`
 - `X-Seatd-Device-ID`
 
-Access tokens are not accepted in URLs. During the current development identity phase, the gateway authorizes a connection by checking that the device is trusted for the organisation/location and that the actor has `operations.read` through a location or organisation membership.
+Access tokens are not accepted in URLs. The gateway authorizes a header-based
+connection by checking that the device is trusted for the organisation/location
+and that the actor has `operations.read` through a location or organisation
+membership. Bearer device credentials must belong to a trusted device assigned
+to a location and allowed to read operations.
 
 ## Message
 
@@ -55,6 +66,12 @@ If a client has an older cursor and does not need a full snapshot, it can call:
 
 The cursor is opaque to clients. Responses include the next cursor.
 
+## Metrics
+
+The realtime service exposes a JSON metrics snapshot at
+`GET /v1/realtime/metrics`. Its response shape is defined in OpenAPI as
+`RealtimeMetricsResponse`.
+
 ## Backpressure
 
 Each connection has a bounded outbound queue. If the queue fills, the gateway closes that connection and increments the backpressure metric. The client must reconnect and reconcile through the snapshot or events API.
@@ -66,4 +83,3 @@ The gateway sends WebSocket ping frames on a fixed interval. Clients should resp
 ## Conflict Handling
 
 Offline commands must submit `expectedVersion`. The API returns `version_conflict` with the current version details when another device has already changed the entity. Clients then reconcile through snapshot/events and re-evaluate pending commands.
-
