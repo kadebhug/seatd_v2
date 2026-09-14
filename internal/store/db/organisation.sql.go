@@ -89,7 +89,7 @@ func (q *Queries) CreateLocationMembership(ctx context.Context, arg CreateLocati
 const createOrganisation = `-- name: CreateOrganisation :one
 INSERT INTO organisations (slug, name, legacy_restaurant_id)
 VALUES ($1, $2, $3)
-RETURNING id, slug, name, status, legacy_restaurant_id, created_at, updated_at
+RETURNING id, slug, name, status, legacy_restaurant_id, created_at, updated_at, onboarded_at
 `
 
 type CreateOrganisationParams struct {
@@ -109,6 +109,7 @@ func (q *Queries) CreateOrganisation(ctx context.Context, arg CreateOrganisation
 		&i.LegacyRestaurantID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OnboardedAt,
 	)
 	return i, err
 }
@@ -172,7 +173,7 @@ func (q *Queries) GetLocation(ctx context.Context, arg GetLocationParams) (Locat
 }
 
 const getOrganisation = `-- name: GetOrganisation :one
-SELECT id, slug, name, status, legacy_restaurant_id, created_at, updated_at
+SELECT id, slug, name, status, legacy_restaurant_id, created_at, updated_at, onboarded_at
 FROM organisations
 WHERE id = $1
 `
@@ -188,6 +189,7 @@ func (q *Queries) GetOrganisation(ctx context.Context, id uuid.UUID) (Organisati
 		&i.LegacyRestaurantID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OnboardedAt,
 	)
 	return i, err
 }
@@ -288,7 +290,7 @@ SET name = $3,
     updated_at = now()
 WHERE id = $1
   AND slug = $2
-RETURNING id, slug, name, status, legacy_restaurant_id, created_at, updated_at
+RETURNING id, slug, name, status, legacy_restaurant_id, created_at, updated_at, onboarded_at
 `
 
 type UpdateOrganisationParams struct {
@@ -314,6 +316,7 @@ func (q *Queries) UpdateOrganisation(ctx context.Context, arg UpdateOrganisation
 		&i.LegacyRestaurantID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OnboardedAt,
 	)
 	return i, err
 }

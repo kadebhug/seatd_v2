@@ -136,6 +136,22 @@ type AnalyticsProjectorCheckpoint struct {
 	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
 }
 
+type AnalyticsRebuildRun struct {
+	ID             uuid.UUID          `json:"id"`
+	OrganisationID uuid.UUID          `json:"organisation_id"`
+	LocationID     uuid.UUID          `json:"location_id"`
+	RequestedBy    string             `json:"requested_by"`
+	RangeFrom      pgtype.Date        `json:"range_from"`
+	RangeTo        pgtype.Date        `json:"range_to"`
+	StartedAt      pgtype.Timestamptz `json:"started_at"`
+	CompletedAt    pgtype.Timestamptz `json:"completed_at"`
+	Status         string             `json:"status"`
+	DaysProcessed  int32              `json:"days_processed"`
+	LastError      pgtype.Text        `json:"last_error"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
 type AnalyticsServicePeriodMetric struct {
 	OrganisationID             uuid.UUID          `json:"organisation_id"`
 	LocationID                 uuid.UUID          `json:"location_id"`
@@ -456,6 +472,7 @@ type Organisation struct {
 	LegacyRestaurantID pgtype.Text        `json:"legacy_restaurant_id"`
 	CreatedAt          pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+	OnboardedAt        pgtype.Timestamptz `json:"onboarded_at"`
 }
 
 type OrganisationMembership struct {
@@ -492,6 +509,30 @@ type Permission struct {
 	Name        string             `json:"name"`
 	Description string             `json:"description"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+type PlatformAdminGrant struct {
+	ID                      uuid.UUID          `json:"id"`
+	Email                   string             `json:"email"`
+	Role                    string             `json:"role"`
+	InvitedByActorRef       string             `json:"invited_by_actor_ref"`
+	CreatedAt               pgtype.Timestamptz `json:"created_at"`
+	ConsumedAt              pgtype.Timestamptz `json:"consumed_at"`
+	ConsumedByUserProfileID uuid.NullUUID      `json:"consumed_by_user_profile_id"`
+	RevokedAt               pgtype.Timestamptz `json:"revoked_at"`
+	RevokedByActorRef       pgtype.Text        `json:"revoked_by_actor_ref"`
+}
+
+type PlatformMembership struct {
+	ID                 uuid.UUID          `json:"id"`
+	UserProfileID      uuid.UUID          `json:"user_profile_id"`
+	Role               string             `json:"role"`
+	GrantedByActorRef  string             `json:"granted_by_actor_ref"`
+	GrantedAt          pgtype.Timestamptz `json:"granted_at"`
+	DisabledAt         pgtype.Timestamptz `json:"disabled_at"`
+	DisabledByActorRef pgtype.Text        `json:"disabled_by_actor_ref"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
 }
 
 type Role struct {

@@ -61,6 +61,31 @@ type DisableMembershipParams struct {
 	ID    uuid.UUID
 }
 
+type PlatformInviteOwnerParams struct {
+	TargetOrganisationID uuid.UUID
+	Email                string
+	DisplayName          string
+	ActorRef             string
+}
+
+type PlatformOwnerMembershipParams struct {
+	TargetOrganisationID uuid.UUID
+	MembershipID         uuid.UUID
+	ActorRef             string
+}
+
+type PlatformReassignOwnershipParams struct {
+	TargetOrganisationID uuid.UUID
+	FromMembershipID     uuid.UUID
+	ToEmail              string
+	ActorRef             string
+}
+
+type PlatformReassignOwnershipResult struct {
+	PreviousOwner ManagedMembership
+	NextOwner     ManagedMembership
+}
+
 func (s *Service) ListManagedMemberships(ctx context.Context, actor TenantActor, includeDisabled bool) ([]ManagedMembership, error) {
 	actor = normalizeTenantActor(actor)
 	if err := validateTenantActor(actor, false); err != nil {
@@ -254,6 +279,157 @@ func (s *Service) DisableMembership(ctx context.Context, arg DisableMembershipPa
 		})
 	})
 	return membership, err
+}
+
+func (s *Service) PlatformInviteOwner(ctx context.Context, arg PlatformInviteOwnerParams) (ManagedMembership, error) {
+	arg.DisplayName = strings.TrimSpace(arg.DisplayName)
+	arg.ActorRef = strings.TrimSpace(arg.ActorRef)
+	email, err := normalizeEmail(arg.Email)
+	if err != nil {
+		return ManagedMembership{}, err
+	}
+	if arg.TargetOrganisationID == uuid.Nil || arg.ActorRef == "" {
+		return ManagedMembership{}, ErrValidation
+	}
+	if arg.DisplayName == "" {
+		arg.DisplayName = email
+	}
+
+	var membership ManagedMembership
+	err = s.inPlatformDBTx(ctx, func(tx pgx.Tx, q *db.Queries) error {
+		if _, err := q.GetOrganisation(ctx, arg.TargetOrganisationID); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrNotFound
+			}
+			return fmt.Errorf("getting organisation: %w", err)
+		}
+		profile, err := getOrCreateUserProfileByEmail(ctx, tx, q, email, arg.DisplayName)
+		if err != nil {
+			return err
+		}
+		membership, err = createOrReactivateOrganisationMembership(ctx, tx, q, CreateMembershipParams{
+			TenantActor: TenantActor{OrganisationID: arg.TargetOrganisationID, ActorRef: arg.ActorRef},
+			Scope:       MembershipScopeOrganisation,
+			Role:        RoleOrganisationOwner,
+		}, profile, userProfileActorRef(profile.ID))
+		return err
+	})
+	if mapped := mapIdentityConstraintError(err); mapped != nil {
+		return ManagedMembership{}, mapped
+	}
+	return membership, err
+}
+
+func (s *Service) PlatformDisableOwnerMembership(ctx context.Context, arg PlatformOwnerMembershipParams) (ManagedMembership, error) {
+	if arg.TargetOrganisationID == uuid.Nil || arg.MembershipID == uuid.Nil || strings.TrimSpace(arg.ActorRef) == "" {
+		return ManagedMembership{}, ErrValidation
+	}
+	var membership ManagedMembership
+	err := s.inPlatformDBTx(ctx, func(tx pgx.Tx, q *db.Queries) error {
+		current, err := getManagedMembershipForUpdate(ctx, tx, arg.TargetOrganisationID, MembershipScopeOrganisation, arg.MembershipID)
+		if err != nil {
+			return err
+		}
+		if current.DisabledAt.Valid {
+			return ErrNotFound
+		}
+		if current.Role != RoleOrganisationOwner {
+			return ErrValidation
+		}
+		if err := requireAnotherOrganisationOwner(ctx, tx, arg.TargetOrganisationID); err != nil {
+			return err
+		}
+		membership, err = disableMembership(ctx, tx, arg.TargetOrganisationID, MembershipScopeOrganisation, arg.MembershipID)
+		return err
+	})
+	return membership, err
+}
+
+func (s *Service) PlatformReactivateOwnerMembership(ctx context.Context, arg PlatformOwnerMembershipParams) (ManagedMembership, error) {
+	if arg.TargetOrganisationID == uuid.Nil || arg.MembershipID == uuid.Nil || strings.TrimSpace(arg.ActorRef) == "" {
+		return ManagedMembership{}, ErrValidation
+	}
+	var membership ManagedMembership
+	err := s.inPlatformDBTx(ctx, func(tx pgx.Tx, q *db.Queries) error {
+		current, err := getManagedMembershipForUpdate(ctx, tx, arg.TargetOrganisationID, MembershipScopeOrganisation, arg.MembershipID)
+		if err != nil {
+			return err
+		}
+		if current.Role != RoleOrganisationOwner {
+			return ErrValidation
+		}
+		membership, err = updateMembershipEnabled(ctx, tx, arg.TargetOrganisationID, MembershipScopeOrganisation, arg.MembershipID, RoleOrganisationOwner)
+		return err
+	})
+	if mapped := mapIdentityConstraintError(err); mapped != nil {
+		return ManagedMembership{}, mapped
+	}
+	return membership, err
+}
+
+func (s *Service) PlatformReassignOwnership(ctx context.Context, arg PlatformReassignOwnershipParams) (PlatformReassignOwnershipResult, error) {
+	arg.ActorRef = strings.TrimSpace(arg.ActorRef)
+	email, err := normalizeEmail(arg.ToEmail)
+	if err != nil {
+		return PlatformReassignOwnershipResult{}, err
+	}
+	if arg.TargetOrganisationID == uuid.Nil || arg.FromMembershipID == uuid.Nil || arg.ActorRef == "" {
+		return PlatformReassignOwnershipResult{}, ErrValidation
+	}
+
+	var result PlatformReassignOwnershipResult
+	err = s.inPlatformDBTx(ctx, func(tx pgx.Tx, q *db.Queries) error {
+		current, err := getManagedMembershipForUpdate(ctx, tx, arg.TargetOrganisationID, MembershipScopeOrganisation, arg.FromMembershipID)
+		if err != nil {
+			return err
+		}
+		if current.DisabledAt.Valid {
+			return ErrNotFound
+		}
+		if current.Role != RoleOrganisationOwner {
+			return ErrValidation
+		}
+		profile, err := getOrCreateUserProfileByEmail(ctx, tx, q, email, email)
+		if err != nil {
+			return err
+		}
+		next, err := createOrReactivateOrganisationMembership(ctx, tx, q, CreateMembershipParams{
+			TenantActor: TenantActor{OrganisationID: arg.TargetOrganisationID, ActorRef: arg.ActorRef},
+			Scope:       MembershipScopeOrganisation,
+			Role:        RoleOrganisationOwner,
+		}, profile, userProfileActorRef(profile.ID))
+		if err != nil && !errors.Is(err, ErrAlreadyExists) {
+			return err
+		}
+		if errors.Is(err, ErrAlreadyExists) {
+			next, err = getMembershipByProfile(ctx, tx, arg.TargetOrganisationID, MembershipScopeOrganisation, uuid.Nil, profile.ID)
+			if err != nil {
+				return err
+			}
+		}
+		if next.ID == arg.FromMembershipID {
+			return ErrValidation
+		}
+		previous, err := disableMembership(ctx, tx, arg.TargetOrganisationID, MembershipScopeOrganisation, arg.FromMembershipID)
+		if err != nil {
+			return err
+		}
+		result = PlatformReassignOwnershipResult{PreviousOwner: previous, NextOwner: next}
+		return nil
+	})
+	if mapped := mapIdentityConstraintError(err); mapped != nil {
+		return PlatformReassignOwnershipResult{}, mapped
+	}
+	return result, err
+}
+
+func (s *Service) inPlatformDBTx(ctx context.Context, fn func(pgx.Tx, *db.Queries) error) error {
+	return s.inTx(ctx, func(tx pgx.Tx, q *db.Queries) error {
+		if _, err := tx.Exec(ctx, "SELECT set_config('seatd.platform_admin', 'true', true)"); err != nil {
+			return fmt.Errorf("setting platform admin context: %w", err)
+		}
+		return fn(tx, q)
+	})
 }
 
 func (s *Service) inTenantDBTx(ctx context.Context, organisationID, locationID uuid.UUID, fn func(pgx.Tx, *db.Queries) error) error {

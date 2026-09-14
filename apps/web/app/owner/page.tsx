@@ -2,14 +2,27 @@ import type { OwnerSnapshotResponse } from "@seatd/typescript-seatd-client";
 import { redirect } from "next/navigation";
 import { StatusBadge } from "../components/status-badge";
 import { seatdFetch } from "../../lib/seatd-api";
-import { getSession, needsOwnerOnboarding } from "../../lib/session";
+import { canAccessOwner, getSession } from "../../lib/session";
 
 export const dynamic = "force-dynamic";
 
 export default async function OwnerPage() {
   const session = await getSession();
-  if (needsOwnerOnboarding(session)) {
-    redirect("/owner/onboarding");
+  if (!session.organisationId) {
+    return (
+      <main className="page" id="main">
+        <section className="page-heading">
+          <p className="eyebrow">Owner workspace</p>
+          <h1>No Workspace Yet</h1>
+        </section>
+        <section className="panel">
+          <p className="empty-state">Contact your platform administrator.</p>
+        </section>
+      </main>
+    );
+  }
+  if (!canAccessOwner(session)) {
+    redirect("/platform");
   }
 
   const snapshot =
@@ -20,6 +33,9 @@ export default async function OwnerPage() {
       <section className="page-heading">
         <p className="eyebrow">Owner workspace</p>
         <h1>{snapshot.organisation.name}</h1>
+        <a className="button-link secondary" href="/owner/onboarding">
+          Finish Setup
+        </a>
       </section>
       <section className="panel location-list">
         {snapshot.locations.length > 0 ? (

@@ -4,6 +4,9 @@ import { dmMono, instrumentSans } from "../lib/fonts";
 import "./styles.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(
+    process.env.SEATD_WEB_BASE_URL?.trim() || "http://localhost:3000",
+  ),
   title: {
     default: "Seatd",
     template: "%s · Seatd",

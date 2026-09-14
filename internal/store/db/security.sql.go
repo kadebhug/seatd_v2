@@ -81,21 +81,21 @@ func (q *Queries) ActorHasOrganisationPermission(ctx context.Context, arg ActorH
 const actorHasPlatformPermission = `-- name: ActorHasPlatformPermission :one
 SELECT EXISTS (
     SELECT 1
-    FROM organisation_memberships om
-    JOIN role_permissions rp ON rp.role_name = om.role
-    WHERE om.member_ref = $1
-      AND om.disabled_at IS NULL
+    FROM platform_memberships pm
+    JOIN role_permissions rp ON rp.role_name = pm.role
+    WHERE pm.user_profile_id = $1
+      AND pm.disabled_at IS NULL
       AND rp.permission_name = $2
 ) AS has_permission
 `
 
 type ActorHasPlatformPermissionParams struct {
-	MemberRef      string `json:"member_ref"`
-	PermissionName string `json:"permission_name"`
+	UserProfileID  uuid.UUID `json:"user_profile_id"`
+	PermissionName string    `json:"permission_name"`
 }
 
 func (q *Queries) ActorHasPlatformPermission(ctx context.Context, arg ActorHasPlatformPermissionParams) (bool, error) {
-	row := q.db.QueryRow(ctx, actorHasPlatformPermission, arg.MemberRef, arg.PermissionName)
+	row := q.db.QueryRow(ctx, actorHasPlatformPermission, arg.UserProfileID, arg.PermissionName)
 	var has_permission bool
 	err := row.Scan(&has_permission)
 	return has_permission, err
@@ -494,6 +494,27 @@ func (q *Queries) GetActiveTableQRCapabilityByHash(ctx context.Context, arg GetA
 		&i.TokenLookupPrefix,
 		&i.TokenHash,
 		&i.LastUsedAt,
+	)
+	return i, err
+}
+
+const getActiveUserProfileByActorRef = `-- name: GetActiveUserProfileByActorRef :one
+SELECT id, display_name, email, status, created_at, updated_at
+FROM user_profiles
+WHERE id = $1
+  AND status = 'active'
+`
+
+func (q *Queries) GetActiveUserProfileByActorRef(ctx context.Context, id uuid.UUID) (UserProfile, error) {
+	row := q.db.QueryRow(ctx, getActiveUserProfileByActorRef, id)
+	var i UserProfile
+	err := row.Scan(
+		&i.ID,
+		&i.DisplayName,
+		&i.Email,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
@@ -1134,6 +1155,44 @@ func (q *Queries) ListUserOrganisationMemberships(ctx context.Context, userProfi
 			&i.UpdatedAt,
 			&i.UserProfileID,
 			&i.DisabledAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUserPlatformMemberships = `-- name: ListUserPlatformMemberships :many
+SELECT id, user_profile_id, role, granted_by_actor_ref, granted_at, disabled_at, disabled_by_actor_ref, created_at, updated_at
+FROM platform_memberships
+WHERE user_profile_id = $1
+  AND disabled_at IS NULL
+ORDER BY role
+`
+
+func (q *Queries) ListUserPlatformMemberships(ctx context.Context, userProfileID uuid.UUID) ([]PlatformMembership, error) {
+	rows, err := q.db.Query(ctx, listUserPlatformMemberships, userProfileID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PlatformMembership{}
+	for rows.Next() {
+		var i PlatformMembership
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserProfileID,
+			&i.Role,
+			&i.GrantedByActorRef,
+			&i.GrantedAt,
+			&i.DisabledAt,
+			&i.DisabledByActorRef,
+			&i.CreatedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}

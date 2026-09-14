@@ -25,7 +25,7 @@ export async function seatdFetch<T>(
   if (session.sessionSecret) {
     headers.set("Authorization", `Bearer ${session.sessionSecret}`);
   } else if (
-    (process.env.SEATD_ENV ?? "local") === "local" ||
+    process.env.SEATD_ENV === "local" ||
     process.env.SEATD_ENV === "test"
   ) {
     headers.set("X-Seatd-Actor-Ref", session.actorRef);

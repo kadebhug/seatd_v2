@@ -235,18 +235,48 @@ FROM (
 ) seeded
 ON CONFLICT (token_hash) DO NOTHING;
 
-INSERT INTO organisation_memberships (organisation_id, member_ref, role)
+INSERT INTO user_profiles (id, display_name, email)
 VALUES
-    ('11111111-1111-1111-1111-111111111111', 'user:owner-demo', 'organisation_owner'),
-    ('11111111-1111-1111-1111-111111111111', 'user:platform-demo', 'platform_admin'),
-    ('11111111-1111-1111-1111-111111111111', 'user:support-demo', 'read_only')
+    ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1', 'Owner Demo', 'owner-demo@seatd.local'),
+    ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa2', 'Platform Demo', 'platform-demo@seatd.local'),
+    ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa3', 'Waiter Demo', 'waiter-demo@seatd.local'),
+    ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa4', 'Support Demo', 'support-demo@seatd.local')
+ON CONFLICT (id) DO UPDATE
+SET display_name = EXCLUDED.display_name,
+    email = EXCLUDED.email,
+    updated_at = now();
+
+INSERT INTO organisation_memberships (organisation_id, user_profile_id, member_ref, role)
+VALUES
+    ('11111111-1111-1111-1111-111111111111', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1', 'user:owner-demo', 'organisation_owner'),
+    ('11111111-1111-1111-1111-111111111111', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa4', 'user:support-demo', 'read_only')
 ON CONFLICT (organisation_id, member_ref) DO NOTHING;
 
-INSERT INTO location_memberships (organisation_id, location_id, member_ref, role)
+INSERT INTO platform_memberships (user_profile_id, role, granted_by_actor_ref)
+VALUES
+    ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa2', 'platform_admin', 'seed:local')
+ON CONFLICT (user_profile_id) WHERE disabled_at IS NULL DO NOTHING;
+
+BEGIN;
+
+SELECT set_config('seatd.platform_admin', 'true', true);
+
+INSERT INTO platform_admin_grants (email, role, invited_by_actor_ref)
+VALUES
+    ('kadeshikaal@gmail.com', 'platform_admin', 'seed:local')
+ON CONFLICT (lower(btrim(email))) WHERE consumed_at IS NULL AND revoked_at IS NULL
+DO UPDATE SET
+    role = EXCLUDED.role,
+    invited_by_actor_ref = EXCLUDED.invited_by_actor_ref;
+
+COMMIT;
+
+INSERT INTO location_memberships (organisation_id, location_id, user_profile_id, member_ref, role)
 VALUES
     (
         '11111111-1111-1111-1111-111111111111',
         '22222222-2222-2222-2222-222222222222',
+        'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa3',
         'user:waiter-demo',
         'waiter'
     )

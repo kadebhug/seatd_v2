@@ -12,6 +12,167 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const consumePlatformAdminGrant = `-- name: ConsumePlatformAdminGrant :one
+UPDATE platform_admin_grants
+SET consumed_at = now(),
+    consumed_by_user_profile_id = $1
+WHERE lower(btrim(email)) = lower(btrim($2))
+  AND consumed_at IS NULL
+  AND revoked_at IS NULL
+RETURNING role, invited_by_actor_ref
+`
+
+type ConsumePlatformAdminGrantParams struct {
+	ConsumedByUserProfileID uuid.NullUUID `json:"consumed_by_user_profile_id"`
+	Btrim                   string        `json:"btrim"`
+}
+
+type ConsumePlatformAdminGrantRow struct {
+	Role              string `json:"role"`
+	InvitedByActorRef string `json:"invited_by_actor_ref"`
+}
+
+func (q *Queries) ConsumePlatformAdminGrant(ctx context.Context, arg ConsumePlatformAdminGrantParams) (ConsumePlatformAdminGrantRow, error) {
+	row := q.db.QueryRow(ctx, consumePlatformAdminGrant, arg.ConsumedByUserProfileID, arg.Btrim)
+	var i ConsumePlatformAdminGrantRow
+	err := row.Scan(&i.Role, &i.InvitedByActorRef)
+	return i, err
+}
+
+const countActivePlatformAdmins = `-- name: CountActivePlatformAdmins :one
+SELECT count(*)::integer
+FROM platform_memberships
+WHERE role = 'platform_admin'
+  AND disabled_at IS NULL
+`
+
+func (q *Queries) CountActivePlatformAdmins(ctx context.Context) (int32, error) {
+	row := q.db.QueryRow(ctx, countActivePlatformAdmins)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const createPlatformAdminGrant = `-- name: CreatePlatformAdminGrant :one
+INSERT INTO platform_admin_grants (email, role, invited_by_actor_ref)
+VALUES (lower(btrim($1)), $2, $3)
+ON CONFLICT (lower(btrim(email))) WHERE consumed_at IS NULL AND revoked_at IS NULL
+DO UPDATE SET
+    role = EXCLUDED.role,
+    invited_by_actor_ref = EXCLUDED.invited_by_actor_ref
+RETURNING id, email, role, invited_by_actor_ref, created_at, consumed_at, consumed_by_user_profile_id, revoked_at, revoked_by_actor_ref
+`
+
+type CreatePlatformAdminGrantParams struct {
+	Btrim             string `json:"btrim"`
+	Role              string `json:"role"`
+	InvitedByActorRef string `json:"invited_by_actor_ref"`
+}
+
+func (q *Queries) CreatePlatformAdminGrant(ctx context.Context, arg CreatePlatformAdminGrantParams) (PlatformAdminGrant, error) {
+	row := q.db.QueryRow(ctx, createPlatformAdminGrant, arg.Btrim, arg.Role, arg.InvitedByActorRef)
+	var i PlatformAdminGrant
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Role,
+		&i.InvitedByActorRef,
+		&i.CreatedAt,
+		&i.ConsumedAt,
+		&i.ConsumedByUserProfileID,
+		&i.RevokedAt,
+		&i.RevokedByActorRef,
+	)
+	return i, err
+}
+
+const createPlatformMembership = `-- name: CreatePlatformMembership :one
+INSERT INTO platform_memberships (user_profile_id, role, granted_by_actor_ref)
+VALUES ($1, $2, $3)
+ON CONFLICT (user_profile_id) WHERE disabled_at IS NULL DO UPDATE
+SET role = EXCLUDED.role,
+    updated_at = now()
+RETURNING id, user_profile_id, role, granted_by_actor_ref, granted_at, disabled_at, disabled_by_actor_ref, created_at, updated_at
+`
+
+type CreatePlatformMembershipParams struct {
+	UserProfileID     uuid.UUID `json:"user_profile_id"`
+	Role              string    `json:"role"`
+	GrantedByActorRef string    `json:"granted_by_actor_ref"`
+}
+
+func (q *Queries) CreatePlatformMembership(ctx context.Context, arg CreatePlatformMembershipParams) (PlatformMembership, error) {
+	row := q.db.QueryRow(ctx, createPlatformMembership, arg.UserProfileID, arg.Role, arg.GrantedByActorRef)
+	var i PlatformMembership
+	err := row.Scan(
+		&i.ID,
+		&i.UserProfileID,
+		&i.Role,
+		&i.GrantedByActorRef,
+		&i.GrantedAt,
+		&i.DisabledAt,
+		&i.DisabledByActorRef,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const disablePlatformMembership = `-- name: DisablePlatformMembership :one
+UPDATE platform_memberships
+SET disabled_at = now(),
+    disabled_by_actor_ref = $2,
+    updated_at = now()
+WHERE id = $1
+  AND disabled_at IS NULL
+RETURNING id, user_profile_id, role, granted_by_actor_ref, granted_at, disabled_at, disabled_by_actor_ref, created_at, updated_at
+`
+
+type DisablePlatformMembershipParams struct {
+	ID                 uuid.UUID   `json:"id"`
+	DisabledByActorRef pgtype.Text `json:"disabled_by_actor_ref"`
+}
+
+func (q *Queries) DisablePlatformMembership(ctx context.Context, arg DisablePlatformMembershipParams) (PlatformMembership, error) {
+	row := q.db.QueryRow(ctx, disablePlatformMembership, arg.ID, arg.DisabledByActorRef)
+	var i PlatformMembership
+	err := row.Scan(
+		&i.ID,
+		&i.UserProfileID,
+		&i.Role,
+		&i.GrantedByActorRef,
+		&i.GrantedAt,
+		&i.DisabledAt,
+		&i.DisabledByActorRef,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getPlatformMembership = `-- name: GetPlatformMembership :one
+SELECT id, user_profile_id, role, granted_by_actor_ref, granted_at, disabled_at, disabled_by_actor_ref, created_at, updated_at
+FROM platform_memberships
+WHERE id = $1
+`
+
+func (q *Queries) GetPlatformMembership(ctx context.Context, id uuid.UUID) (PlatformMembership, error) {
+	row := q.db.QueryRow(ctx, getPlatformMembership, id)
+	var i PlatformMembership
+	err := row.Scan(
+		&i.ID,
+		&i.UserProfileID,
+		&i.Role,
+		&i.GrantedByActorRef,
+		&i.GrantedAt,
+		&i.DisabledAt,
+		&i.DisabledByActorRef,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getPlatformTenantDiagnostics = `-- name: GetPlatformTenantDiagnostics :one
 WITH location_counts AS (
     SELECT
@@ -206,6 +367,149 @@ func (q *Queries) GetPlatformTenantOverview(ctx context.Context, id uuid.UUID) (
 	return i, err
 }
 
+const listPlatformAdminGrants = `-- name: ListPlatformAdminGrants :many
+SELECT id, email, role, invited_by_actor_ref, created_at, consumed_at, consumed_by_user_profile_id, revoked_at, revoked_by_actor_ref
+FROM platform_admin_grants
+ORDER BY revoked_at NULLS FIRST, consumed_at NULLS FIRST, created_at DESC
+`
+
+func (q *Queries) ListPlatformAdminGrants(ctx context.Context) ([]PlatformAdminGrant, error) {
+	rows, err := q.db.Query(ctx, listPlatformAdminGrants)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PlatformAdminGrant{}
+	for rows.Next() {
+		var i PlatformAdminGrant
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.Role,
+			&i.InvitedByActorRef,
+			&i.CreatedAt,
+			&i.ConsumedAt,
+			&i.ConsumedByUserProfileID,
+			&i.RevokedAt,
+			&i.RevokedByActorRef,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPlatformMemberships = `-- name: ListPlatformMemberships :many
+SELECT
+    pm.id,
+    pm.user_profile_id,
+    up.display_name,
+    up.email,
+    pm.role,
+    pm.granted_by_actor_ref,
+    pm.granted_at,
+    pm.disabled_at,
+    pm.disabled_by_actor_ref,
+    pm.created_at,
+    pm.updated_at
+FROM platform_memberships pm
+JOIN user_profiles up ON up.id = pm.user_profile_id
+ORDER BY pm.disabled_at NULLS FIRST, pm.role, up.display_name, up.email
+`
+
+type ListPlatformMembershipsRow struct {
+	ID                 uuid.UUID          `json:"id"`
+	UserProfileID      uuid.UUID          `json:"user_profile_id"`
+	DisplayName        string             `json:"display_name"`
+	Email              pgtype.Text        `json:"email"`
+	Role               string             `json:"role"`
+	GrantedByActorRef  string             `json:"granted_by_actor_ref"`
+	GrantedAt          pgtype.Timestamptz `json:"granted_at"`
+	DisabledAt         pgtype.Timestamptz `json:"disabled_at"`
+	DisabledByActorRef pgtype.Text        `json:"disabled_by_actor_ref"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) ListPlatformMemberships(ctx context.Context) ([]ListPlatformMembershipsRow, error) {
+	rows, err := q.db.Query(ctx, listPlatformMemberships)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPlatformMembershipsRow{}
+	for rows.Next() {
+		var i ListPlatformMembershipsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserProfileID,
+			&i.DisplayName,
+			&i.Email,
+			&i.Role,
+			&i.GrantedByActorRef,
+			&i.GrantedAt,
+			&i.DisabledAt,
+			&i.DisabledByActorRef,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPlatformTenantAudit = `-- name: ListPlatformTenantAudit :many
+SELECT id, organisation_id, location_id, actor_ref, action, target_type, target_id, metadata, created_at
+FROM audit_events
+WHERE organisation_id = $1
+ORDER BY created_at DESC
+LIMIT $2
+`
+
+type ListPlatformTenantAuditParams struct {
+	OrganisationID uuid.NullUUID `json:"organisation_id"`
+	Limit          int32         `json:"limit"`
+}
+
+func (q *Queries) ListPlatformTenantAudit(ctx context.Context, arg ListPlatformTenantAuditParams) ([]AuditEvent, error) {
+	rows, err := q.db.Query(ctx, listPlatformTenantAudit, arg.OrganisationID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AuditEvent{}
+	for rows.Next() {
+		var i AuditEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganisationID,
+			&i.LocationID,
+			&i.ActorRef,
+			&i.Action,
+			&i.TargetType,
+			&i.TargetID,
+			&i.Metadata,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPlatformTenantDeviceCounts = `-- name: ListPlatformTenantDeviceCounts :many
 SELECT
     trust_state,
@@ -339,6 +643,124 @@ func (q *Queries) ListPlatformTenantMembershipRoleCounts(ctx context.Context, or
 	return items, nil
 }
 
+const listPlatformTenantOwners = `-- name: ListPlatformTenantOwners :many
+SELECT om.id, 'organisation' AS scope, om.organisation_id, NULL::uuid AS location_id, om.user_profile_id,
+       up.display_name, up.email, om.member_ref, om.role, om.disabled_at
+FROM organisation_memberships om
+LEFT JOIN user_profiles up ON up.id = om.user_profile_id
+WHERE om.organisation_id = $1
+  AND om.role = 'organisation_owner'
+  AND ($2::boolean OR om.disabled_at IS NULL)
+ORDER BY om.disabled_at NULLS FIRST, up.display_name, om.member_ref
+`
+
+type ListPlatformTenantOwnersParams struct {
+	OrganisationID uuid.UUID `json:"organisation_id"`
+	Column2        bool      `json:"column_2"`
+}
+
+type ListPlatformTenantOwnersRow struct {
+	ID             uuid.UUID          `json:"id"`
+	Scope          string             `json:"scope"`
+	OrganisationID uuid.UUID          `json:"organisation_id"`
+	LocationID     uuid.NullUUID      `json:"location_id"`
+	UserProfileID  uuid.NullUUID      `json:"user_profile_id"`
+	DisplayName    pgtype.Text        `json:"display_name"`
+	Email          pgtype.Text        `json:"email"`
+	MemberRef      string             `json:"member_ref"`
+	Role           string             `json:"role"`
+	DisabledAt     pgtype.Timestamptz `json:"disabled_at"`
+}
+
+func (q *Queries) ListPlatformTenantOwners(ctx context.Context, arg ListPlatformTenantOwnersParams) ([]ListPlatformTenantOwnersRow, error) {
+	rows, err := q.db.Query(ctx, listPlatformTenantOwners, arg.OrganisationID, arg.Column2)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPlatformTenantOwnersRow{}
+	for rows.Next() {
+		var i ListPlatformTenantOwnersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Scope,
+			&i.OrganisationID,
+			&i.LocationID,
+			&i.UserProfileID,
+			&i.DisplayName,
+			&i.Email,
+			&i.MemberRef,
+			&i.Role,
+			&i.DisabledAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const reactivatePlatformMembership = `-- name: ReactivatePlatformMembership :one
+UPDATE platform_memberships
+SET disabled_at = NULL,
+    disabled_by_actor_ref = NULL,
+    updated_at = now()
+WHERE id = $1
+RETURNING id, user_profile_id, role, granted_by_actor_ref, granted_at, disabled_at, disabled_by_actor_ref, created_at, updated_at
+`
+
+func (q *Queries) ReactivatePlatformMembership(ctx context.Context, id uuid.UUID) (PlatformMembership, error) {
+	row := q.db.QueryRow(ctx, reactivatePlatformMembership, id)
+	var i PlatformMembership
+	err := row.Scan(
+		&i.ID,
+		&i.UserProfileID,
+		&i.Role,
+		&i.GrantedByActorRef,
+		&i.GrantedAt,
+		&i.DisabledAt,
+		&i.DisabledByActorRef,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const revokePlatformAdminGrant = `-- name: RevokePlatformAdminGrant :one
+UPDATE platform_admin_grants
+SET revoked_at = now(),
+    revoked_by_actor_ref = $2
+WHERE id = $1
+  AND consumed_at IS NULL
+  AND revoked_at IS NULL
+RETURNING id, email, role, invited_by_actor_ref, created_at, consumed_at, consumed_by_user_profile_id, revoked_at, revoked_by_actor_ref
+`
+
+type RevokePlatformAdminGrantParams struct {
+	ID                uuid.UUID   `json:"id"`
+	RevokedByActorRef pgtype.Text `json:"revoked_by_actor_ref"`
+}
+
+func (q *Queries) RevokePlatformAdminGrant(ctx context.Context, arg RevokePlatformAdminGrantParams) (PlatformAdminGrant, error) {
+	row := q.db.QueryRow(ctx, revokePlatformAdminGrant, arg.ID, arg.RevokedByActorRef)
+	var i PlatformAdminGrant
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Role,
+		&i.InvitedByActorRef,
+		&i.CreatedAt,
+		&i.ConsumedAt,
+		&i.ConsumedByUserProfileID,
+		&i.RevokedAt,
+		&i.RevokedByActorRef,
+	)
+	return i, err
+}
+
 const searchPlatformTenants = `-- name: SearchPlatformTenants :many
 WITH tenant_locations AS (
     SELECT
@@ -445,6 +867,30 @@ func (q *Queries) SearchPlatformTenants(ctx context.Context, arg SearchPlatformT
 	return items, nil
 }
 
+const setOrganisationOnboarded = `-- name: SetOrganisationOnboarded :one
+UPDATE organisations
+SET onboarded_at = now(),
+    updated_at = now()
+WHERE id = $1
+RETURNING id, slug, name, status, legacy_restaurant_id, created_at, updated_at, onboarded_at
+`
+
+func (q *Queries) SetOrganisationOnboarded(ctx context.Context, id uuid.UUID) (Organisation, error) {
+	row := q.db.QueryRow(ctx, setOrganisationOnboarded, id)
+	var i Organisation
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.Name,
+		&i.Status,
+		&i.LegacyRestaurantID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OnboardedAt,
+	)
+	return i, err
+}
+
 const setOrganisationStatus = `-- name: SetOrganisationStatus :one
 UPDATE organisations
 SET status = $2,
@@ -458,9 +904,19 @@ type SetOrganisationStatusParams struct {
 	Status string    `json:"status"`
 }
 
-func (q *Queries) SetOrganisationStatus(ctx context.Context, arg SetOrganisationStatusParams) (Organisation, error) {
+type SetOrganisationStatusRow struct {
+	ID                 uuid.UUID          `json:"id"`
+	Slug               string             `json:"slug"`
+	Name               string             `json:"name"`
+	Status             string             `json:"status"`
+	LegacyRestaurantID pgtype.Text        `json:"legacy_restaurant_id"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) SetOrganisationStatus(ctx context.Context, arg SetOrganisationStatusParams) (SetOrganisationStatusRow, error) {
 	row := q.db.QueryRow(ctx, setOrganisationStatus, arg.ID, arg.Status)
-	var i Organisation
+	var i SetOrganisationStatusRow
 	err := row.Scan(
 		&i.ID,
 		&i.Slug,

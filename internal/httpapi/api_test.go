@@ -18,7 +18,7 @@ import (
 func TestCommandRequiresDevelopmentHeaders(t *testing.T) {
 	t.Parallel()
 
-	handler := NewHandler(app.Config{}, nil, nil)
+	handler := NewHandler(app.Config{Environment: app.EnvTest}, nil, nil)
 	req := httptest.NewRequest(http.MethodPost, "/v1/tables/55555555-5555-5555-5555-555555555551/occupy", strings.NewReader(`{}`))
 	rec := httptest.NewRecorder()
 
@@ -30,7 +30,7 @@ func TestCommandRequiresDevelopmentHeaders(t *testing.T) {
 func TestCommandRejectsInvalidPathUUID(t *testing.T) {
 	t.Parallel()
 
-	handler := NewHandler(app.Config{}, nil, nil)
+	handler := NewHandler(app.Config{Environment: app.EnvTest}, nil, nil)
 	req := httptest.NewRequest(http.MethodPost, "/v1/tables/not-a-uuid/occupy", strings.NewReader(`{}`))
 	req.Header.Set(headerOrganisationID, "11111111-1111-1111-1111-111111111111")
 	req.Header.Set(headerLocationID, "22222222-2222-2222-2222-222222222222")
@@ -46,7 +46,7 @@ func TestCommandRejectsInvalidPathUUID(t *testing.T) {
 func TestCommandRejectsMissingCommandID(t *testing.T) {
 	t.Parallel()
 
-	handler := NewHandler(app.Config{}, nil, nil)
+	handler := NewHandler(app.Config{Environment: app.EnvTest}, nil, nil)
 	req := httptest.NewRequest(http.MethodPost, "/v1/tables/55555555-5555-5555-5555-555555555551/occupy", strings.NewReader(`{"expectedVersion":1}`))
 	req.Header.Set(headerOrganisationID, "11111111-1111-1111-1111-111111111111")
 	req.Header.Set(headerLocationID, "22222222-2222-2222-2222-222222222222")
@@ -61,7 +61,7 @@ func TestCommandRejectsMissingCommandID(t *testing.T) {
 func TestOwnerSnapshotRequiresActor(t *testing.T) {
 	t.Parallel()
 
-	handler := NewHandler(app.Config{}, nil, nil)
+	handler := NewHandler(app.Config{Environment: app.EnvTest}, nil, nil)
 	req := httptest.NewRequest(http.MethodGet, "/v1/owner/snapshot", nil)
 	req.Header.Set(headerOrganisationID, "11111111-1111-1111-1111-111111111111")
 	rec := httptest.NewRecorder()
@@ -74,7 +74,7 @@ func TestOwnerSnapshotRequiresActor(t *testing.T) {
 func TestLocalRequestContextPrefersBearerOverTrustedHeaders(t *testing.T) {
 	t.Parallel()
 
-	handler := NewHandler(app.Config{}, nil, nil)
+	handler := NewHandler(app.Config{Environment: app.EnvTest}, nil, nil)
 	req := httptest.NewRequest(http.MethodGet, "/v1/owner/snapshot", nil)
 	req.Header.Set(headerOrganisationID, "11111111-1111-1111-1111-111111111111")
 	req.Header.Set("Authorization", "Bearer short-secret")
@@ -92,6 +92,22 @@ func TestProductionRequestContextRejectsForgedIdentityHeaders(t *testing.T) {
 	t.Parallel()
 
 	handler := NewHandler(app.Config{Environment: app.EnvProduction}, nil, nil)
+	req := httptest.NewRequest(http.MethodPost, "/v1/tables/not-a-uuid/occupy", strings.NewReader(`{}`))
+	req.Header.Set(headerOrganisationID, "11111111-1111-1111-1111-111111111111")
+	req.Header.Set(headerLocationID, "22222222-2222-2222-2222-222222222222")
+	req.Header.Set(headerActorRef, "user:owner-demo")
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	assertAPIError(t, rec, http.StatusBadRequest, "validation_failed")
+	assertAPIErrorMessage(t, rec, "client-supplied identity headers are not accepted")
+}
+
+func TestUnsetEnvironmentRequestContextRejectsForgedIdentityHeaders(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(app.Config{}, nil, nil)
 	req := httptest.NewRequest(http.MethodPost, "/v1/tables/not-a-uuid/occupy", strings.NewReader(`{}`))
 	req.Header.Set(headerOrganisationID, "11111111-1111-1111-1111-111111111111")
 	req.Header.Set(headerLocationID, "22222222-2222-2222-2222-222222222222")
@@ -348,7 +364,7 @@ func TestLocationsForSessionWithoutMembershipsMarshalsEmptyArray(t *testing.T) {
 func TestDeviceHeartbeatRequiresBearerCredential(t *testing.T) {
 	t.Parallel()
 
-	handler := NewHandler(app.Config{}, nil, nil)
+	handler := NewHandler(app.Config{Environment: app.EnvTest}, nil, nil)
 	req := httptest.NewRequest(http.MethodPost, "/v1/devices/heartbeat", strings.NewReader(`{"appVersion":"0.1.0"}`))
 	rec := httptest.NewRecorder()
 

@@ -339,6 +339,10 @@ func membershipDTOs(memberships []identity.Membership) []membershipDTO {
 			MemberRef:      membership.MemberRef,
 			Role:           membership.Role,
 		}
+		if membership.OrganisationID == uuid.Nil {
+			dto.Scope = "platform"
+			dto.OrganisationID = ""
+		}
 		if membership.LocationID != uuid.Nil {
 			locationID := membership.LocationID.String()
 			dto.Scope = "location"
@@ -414,9 +418,14 @@ func sessionPermissions(session identity.WebSession, organisationID, locationID 
 func rolePermissions(role string) []string {
 	switch role {
 	case identity.RolePlatformAdmin:
-		return []string{identity.PermissionPlatformAdmin, identity.PermissionAuditRead}
+		return []string{
+			identity.PermissionPlatformAdmin,
+			identity.PermissionPlatformAdminWrite,
+			identity.PermissionPlatformManageAdmins,
+			identity.PermissionAuditRead,
+		}
 	case identity.RoleSupport:
-		return []string{identity.PermissionAuditRead}
+		return []string{identity.PermissionPlatformAdmin, identity.PermissionAuditRead}
 	case identity.RoleOrganisationOwner:
 		return []string{
 			identity.PermissionOrganisationManage,
@@ -456,6 +465,18 @@ func rolePermissions(role string) []string {
 	}
 }
 
+func userProfileIDFromActorRef(actorRef string) (uuid.UUID, error) {
+	value, ok := strings.CutPrefix(strings.TrimSpace(actorRef), "user:")
+	if !ok {
+		return uuid.Nil, identity.ErrValidation
+	}
+	id, err := uuid.Parse(strings.TrimSpace(value))
+	if err != nil {
+		return uuid.Nil, identity.ErrValidation
+	}
+	return id, nil
+}
+
 func devicePermissions(device db.Device) []string {
 	switch device.DeviceType {
 	case identity.DeviceTypeDisplay:
@@ -488,7 +509,7 @@ func userActorRef(id uuid.UUID) string {
 }
 
 func isDevelopmentEnvironment(env string) bool {
-	return env == "" || env == app.EnvLocal || env == app.EnvTest
+	return env == app.EnvLocal || env == app.EnvTest
 }
 
 func ttlSeconds(value string, fallback time.Duration) time.Duration {

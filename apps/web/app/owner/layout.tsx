@@ -1,12 +1,7 @@
 import { redirect } from "next/navigation";
 import type React from "react";
 import { AppShell } from "../components/app-shell";
-import {
-  canAccessOwner,
-  canAccessPlatform,
-  getSession,
-  needsOwnerOnboarding,
-} from "../../lib/session";
+import { canAccessOwner, canAccessPlatform, getSession } from "../../lib/session";
 
 const ownerNav = [
   { href: "/owner", label: "Overview" },
@@ -22,13 +17,13 @@ export default async function OwnerLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   const session = await getSession();
-  if (!canAccessOwner(session) && !needsOwnerOnboarding(session)) {
+  if (!canAccessOwner(session) && session.organisationId) {
     redirect("/");
   }
 
-  const navItems = needsOwnerOnboarding(session)
-    ? [{ href: "/owner/onboarding", label: "Onboarding" }]
-    : [...ownerNav];
+  const navItems = session.organisationId
+    ? [...ownerNav]
+    : [{ href: "/owner", label: "Overview" }];
   if (canAccessPlatform(session)) {
     navItems.push({ href: "/platform", label: "Platform" });
   }

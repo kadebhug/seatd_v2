@@ -26,19 +26,20 @@ const (
 	RoleReadOnly          = "read_only"
 	RoleSupport           = "support"
 
-	PermissionPlatformAdmin      = "platform.admin"
-	PermissionPlatformAdminWrite = "platform.admin.write"
-	PermissionOrganisationManage = "organisation.manage"
-	PermissionLocationManage     = "location.manage"
-	PermissionLayoutRead         = "layout.read"
-	PermissionLayoutWrite        = "layout.write"
-	PermissionOperationsRead     = "operations.read"
-	PermissionOperationsWrite    = "operations.write"
-	PermissionDeviceManage       = "device.manage"
-	PermissionAuditRead          = "audit.read"
-	PermissionAnalyticsRead      = "analytics.read"
-	PermissionIntegrationsRead   = "integrations.read"
-	PermissionIntegrationsManage = "integrations.manage"
+	PermissionPlatformAdmin        = "platform.admin"
+	PermissionPlatformAdminWrite   = "platform.admin.write"
+	PermissionPlatformManageAdmins = "platform.admin.manage_admins"
+	PermissionOrganisationManage   = "organisation.manage"
+	PermissionLocationManage       = "location.manage"
+	PermissionLayoutRead           = "layout.read"
+	PermissionLayoutWrite          = "layout.write"
+	PermissionOperationsRead       = "operations.read"
+	PermissionOperationsWrite      = "operations.write"
+	PermissionDeviceManage         = "device.manage"
+	PermissionAuditRead            = "audit.read"
+	PermissionAnalyticsRead        = "analytics.read"
+	PermissionIntegrationsRead     = "integrations.read"
+	PermissionIntegrationsManage   = "integrations.manage"
 
 	DeviceTypeWaiterMobile  = "waiter_mobile"
 	DeviceTypeManagerTablet = "manager_tablet"
@@ -189,6 +190,37 @@ type OnboardOwnerResult struct {
 	WebSession     WebSession
 }
 
+type PlatformProvisionTenantParams struct {
+	OrganisationName string
+	OrganisationSlug string
+	LocationName     string
+	LocationSlug     string
+	Timezone         string
+	OwnerEmail       string
+	OwnerDisplayName string
+}
+
+type PlatformProvisionTenantResult struct {
+	Organisation db.Organisation
+	Location     db.Location
+	Owner        ManagedMembership
+}
+
+type OwnerSetupParams struct {
+	UserProfileID  uuid.UUID
+	Floor          OnboardingFloor
+	ServicePeriods []OnboardingServicePeriod
+}
+
+type OwnerSetupResult struct {
+	Organisation   db.Organisation
+	Location       db.Location
+	Floor          *db.Floor
+	Zones          []db.Zone
+	Tables         []db.Table
+	ServicePeriods []db.ServicePeriod
+}
+
 type ResolveExternalIdentityParams struct {
 	DisplayName   string
 	Email         string
@@ -220,13 +252,9 @@ func (s *Service) ResolveExternalIdentity(ctx context.Context, arg ResolveExtern
 		})
 		if err == nil {
 			result = UserProfileResult{User: row.UserProfile, External: row.ExternalIdentity}
-			return nil
-		}
-		if !errors.Is(err, pgx.ErrNoRows) {
+		} else if !errors.Is(err, pgx.ErrNoRows) {
 			return fmt.Errorf("getting external identity: %w", err)
-		}
-
-		if arg.EmailVerified && arg.Email != "" {
+		} else if arg.EmailVerified && arg.Email != "" {
 			normalizedEmail, err := normalizeEmail(arg.Email)
 			if err == nil {
 				existing, err := q.GetActiveUserProfileByEmail(ctx, nullableText(normalizedEmail))
@@ -241,38 +269,68 @@ func (s *Service) ResolveExternalIdentity(ctx context.Context, arg ResolveExtern
 						return fmt.Errorf("linking invited external identity: %w", err)
 					}
 					result = UserProfileResult{User: existing, External: external}
-					return nil
-				}
-				if !errors.Is(err, pgx.ErrNoRows) {
+				} else if !errors.Is(err, pgx.ErrNoRows) {
 					return fmt.Errorf("getting invited user profile by email: %w", err)
 				}
 			}
 		}
 
-		profileEmail := arg.Email
-		if !arg.EmailVerified {
-			profileEmail = ""
+		if result.User.ID == uuid.Nil {
+			profileEmail := arg.Email
+			if !arg.EmailVerified {
+				profileEmail = ""
+			}
+			created, err := q.CreateUserProfile(ctx, db.CreateUserProfileParams{
+				DisplayName: arg.DisplayName,
+				Email:       nullableText(profileEmail),
+			})
+			if err != nil {
+				return fmt.Errorf("creating user profile: %w", err)
+			}
+			external, err := q.LinkExternalIdentity(ctx, db.LinkExternalIdentityParams{
+				UserProfileID: created.ID,
+				Issuer:        arg.External.Issuer,
+				Subject:       arg.External.Subject,
+				Email:         nullableText(arg.External.Email),
+			})
+			if err != nil {
+				return fmt.Errorf("linking external identity: %w", err)
+			}
+			result = UserProfileResult{User: created, External: external}
 		}
-		created, err := q.CreateUserProfile(ctx, db.CreateUserProfileParams{
-			DisplayName: arg.DisplayName,
-			Email:       nullableText(profileEmail),
-		})
-		if err != nil {
-			return fmt.Errorf("creating user profile: %w", err)
+		if arg.EmailVerified && arg.Email != "" {
+			if err := consumePendingPlatformGrant(ctx, q, result.User.ID, arg.Email); err != nil {
+				return err
+			}
 		}
-		external, err := q.LinkExternalIdentity(ctx, db.LinkExternalIdentityParams{
-			UserProfileID: created.ID,
-			Issuer:        arg.External.Issuer,
-			Subject:       arg.External.Subject,
-			Email:         nullableText(arg.External.Email),
-		})
-		if err != nil {
-			return fmt.Errorf("linking external identity: %w", err)
-		}
-		result = UserProfileResult{User: created, External: external}
 		return nil
 	})
 	return result, err
+}
+
+func consumePendingPlatformGrant(ctx context.Context, q *db.Queries, userProfileID uuid.UUID, email string) error {
+	normalizedEmail, err := normalizeEmail(email)
+	if err != nil {
+		return nil
+	}
+	grant, err := q.ConsumePlatformAdminGrant(ctx, db.ConsumePlatformAdminGrantParams{
+		ConsumedByUserProfileID: nullableUUID(userProfileID),
+		Btrim:                   normalizedEmail,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+		return fmt.Errorf("consuming platform admin grant: %w", err)
+	}
+	if _, err := q.CreatePlatformMembership(ctx, db.CreatePlatformMembershipParams{
+		UserProfileID:     userProfileID,
+		Role:              grant.Role,
+		GrantedByActorRef: grant.InvitedByActorRef,
+	}); err != nil {
+		return fmt.Errorf("creating platform membership from grant: %w", err)
+	}
+	return nil
 }
 
 func (s *Service) OnboardOwner(ctx context.Context, arg OnboardOwnerParams) (OnboardOwnerResult, error) {
@@ -356,6 +414,178 @@ func (s *Service) OnboardOwner(ctx context.Context, arg OnboardOwnerParams) (Onb
 		return OnboardOwnerResult{}, mapped
 	}
 	return result, err
+}
+
+func (s *Service) PlatformProvisionTenant(ctx context.Context, arg PlatformProvisionTenantParams) (PlatformProvisionTenantResult, error) {
+	arg.OrganisationName = strings.TrimSpace(arg.OrganisationName)
+	arg.OrganisationSlug = strings.TrimSpace(arg.OrganisationSlug)
+	arg.LocationName = strings.TrimSpace(arg.LocationName)
+	arg.LocationSlug = strings.TrimSpace(arg.LocationSlug)
+	arg.Timezone = strings.TrimSpace(arg.Timezone)
+	if arg.Timezone == "" {
+		arg.Timezone = "UTC"
+	}
+	arg.OwnerDisplayName = strings.TrimSpace(arg.OwnerDisplayName)
+	ownerEmail, err := normalizeEmail(arg.OwnerEmail)
+	if err != nil {
+		return PlatformProvisionTenantResult{}, err
+	}
+	if arg.OwnerDisplayName == "" {
+		arg.OwnerDisplayName = ownerEmail
+	}
+	if arg.OrganisationName == "" || arg.LocationName == "" || !validSlug(arg.OrganisationSlug) || !validSlug(arg.LocationSlug) {
+		return PlatformProvisionTenantResult{}, ErrValidation
+	}
+	if _, err := time.LoadLocation(arg.Timezone); err != nil {
+		return PlatformProvisionTenantResult{}, ErrValidation
+	}
+
+	var result PlatformProvisionTenantResult
+	err = s.inTx(ctx, func(tx pgx.Tx, q *db.Queries) error {
+		if _, err := tx.Exec(ctx, "SELECT set_config('seatd.platform_admin', 'true', true)"); err != nil {
+			return fmt.Errorf("setting platform admin context: %w", err)
+		}
+		org, err := q.CreateOrganisation(ctx, db.CreateOrganisationParams{
+			Slug: arg.OrganisationSlug,
+			Name: arg.OrganisationName,
+		})
+		if err != nil {
+			return fmt.Errorf("creating organisation: %w", err)
+		}
+		location, err := q.CreateLocation(ctx, db.CreateLocationParams{
+			OrganisationID: org.ID,
+			Slug:           arg.LocationSlug,
+			Name:           arg.LocationName,
+			Timezone:       arg.Timezone,
+		})
+		if err != nil {
+			return fmt.Errorf("creating location: %w", err)
+		}
+		profile, err := getOrCreateUserProfileByEmail(ctx, tx, q, ownerEmail, arg.OwnerDisplayName)
+		if err != nil {
+			return err
+		}
+		owner, err := createOrReactivateOrganisationMembership(ctx, tx, q, CreateMembershipParams{
+			TenantActor: TenantActor{OrganisationID: org.ID, ActorRef: "platform"},
+			Scope:       MembershipScopeOrganisation,
+			Role:        RoleOrganisationOwner,
+		}, profile, userProfileActorRef(profile.ID))
+		if err != nil {
+			return err
+		}
+		result = PlatformProvisionTenantResult{Organisation: org, Location: location, Owner: owner}
+		return nil
+	})
+	if mapped := mapIdentityConstraintError(err); mapped != nil {
+		return PlatformProvisionTenantResult{}, mapped
+	}
+	return result, err
+}
+
+func (s *Service) OwnerSetup(ctx context.Context, arg OwnerSetupParams) (OwnerSetupResult, error) {
+	if arg.UserProfileID == uuid.Nil {
+		return OwnerSetupResult{}, ErrValidation
+	}
+	onboarding := OnboardOwnerParams{
+		UserProfileID:  arg.UserProfileID,
+		Floor:          arg.Floor,
+		ServicePeriods: arg.ServicePeriods,
+	}
+	normalized, err := normalizeOnboardOwnerParams(onboarding)
+	if err != nil {
+		return OwnerSetupResult{}, err
+	}
+	if err := validateOwnerSetupParams(normalized); err != nil {
+		return OwnerSetupResult{}, err
+	}
+
+	var result OwnerSetupResult
+	err = s.inAdminTx(ctx, func(q *db.Queries) error {
+		orgs, err := q.ListUserOrganisationMemberships(ctx, nullableUUID(arg.UserProfileID))
+		if err != nil {
+			return fmt.Errorf("listing owner memberships: %w", err)
+		}
+		var ownerOrgID uuid.UUID
+		for _, membership := range orgs {
+			if membership.Role == RoleOrganisationOwner {
+				ownerOrgID = membership.OrganisationID
+				break
+			}
+		}
+		if ownerOrgID == uuid.Nil {
+			return ErrForbidden
+		}
+		org, err := q.GetOrganisation(ctx, ownerOrgID)
+		if err != nil {
+			return fmt.Errorf("getting owner organisation: %w", err)
+		}
+		if org.OnboardedAt.Valid {
+			return ErrAlreadyExists
+		}
+		locations, err := q.ListLocationsByOrganisation(ctx, ownerOrgID)
+		if err != nil {
+			return fmt.Errorf("listing organisation locations: %w", err)
+		}
+		if len(locations) == 0 {
+			return ErrNotFound
+		}
+		location := locations[0]
+		floor, zones, tables, err := createOnboardingLayout(ctx, q, ownerOrgID, location.ID, normalized.Floor)
+		if err != nil {
+			return err
+		}
+		periods, err := createOnboardingServicePeriods(ctx, q, ownerOrgID, location.ID, normalized.ServicePeriods)
+		if err != nil {
+			return err
+		}
+		org, err = q.SetOrganisationOnboarded(ctx, ownerOrgID)
+		if err != nil {
+			return fmt.Errorf("marking organisation onboarded: %w", err)
+		}
+		result = OwnerSetupResult{
+			Organisation:   org,
+			Location:       location,
+			Floor:          floor,
+			Zones:          zones,
+			Tables:         tables,
+			ServicePeriods: periods,
+		}
+		return nil
+	})
+	if mapped := mapIdentityConstraintError(err); mapped != nil {
+		return OwnerSetupResult{}, mapped
+	}
+	return result, err
+}
+
+func validateOwnerSetupParams(arg OnboardOwnerParams) error {
+	if arg.UserProfileID == uuid.Nil || !validSlug(arg.Floor.Slug) || !jsonObject(arg.Floor.Canvas) {
+		return ErrValidation
+	}
+	zoneNames := map[string]bool{}
+	for _, zone := range arg.Floor.Zones {
+		if zone.Name == "" || zoneNames[zone.Name] {
+			return ErrValidation
+		}
+		zoneNames[zone.Name] = true
+	}
+	for _, table := range arg.Floor.Tables {
+		if table.Label == "" ||
+			table.CapacityLabel == "" ||
+			!validTableShape(table.Shape) ||
+			!jsonObject(table.Geometry) {
+			return ErrValidation
+		}
+		if table.ZoneName != "" && !zoneNames[table.ZoneName] {
+			return ErrValidation
+		}
+	}
+	for _, period := range arg.ServicePeriods {
+		if _, _, _, _, err := parseOnboardingServicePeriod(period); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 type CreateWebSessionParams struct {
@@ -519,12 +749,22 @@ func (s *Service) hydrateWebSession(ctx context.Context, session db.WebSession, 
 		if err != nil {
 			return fmt.Errorf("listing location memberships: %w", err)
 		}
-		result.Memberships = make([]Membership, 0, len(orgs)+len(locations))
+		platform, err := q.ListUserPlatformMemberships(ctx, session.UserProfileID)
+		if err != nil {
+			return fmt.Errorf("listing platform memberships: %w", err)
+		}
+		result.Memberships = make([]Membership, 0, len(orgs)+len(locations)+len(platform))
 		for _, membership := range orgs {
 			result.Memberships = append(result.Memberships, Membership{
 				OrganisationID: membership.OrganisationID,
 				MemberRef:      membership.MemberRef,
 				Role:           membership.Role,
+			})
+		}
+		for _, membership := range platform {
+			result.Memberships = append(result.Memberships, Membership{
+				MemberRef: userProfileActorRef(membership.UserProfileID),
+				Role:      membership.Role,
 			})
 		}
 		for _, membership := range locations {

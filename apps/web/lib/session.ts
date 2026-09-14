@@ -33,7 +33,7 @@ const demoSession: SeatdSession = {
 };
 
 const platformDemoSession: SeatdSession = {
-  actorRef: "user:platform-demo",
+  actorRef: "user:aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa2",
   displayName: "Platform Demo",
   organisationId: "11111111-1111-1111-1111-111111111111",
   locationId: "",
@@ -42,12 +42,12 @@ const platformDemoSession: SeatdSession = {
 
 export async function getSession(): Promise<SeatdSession> {
   const jar = await cookies();
-  const env = process.env.SEATD_ENV ?? "local";
+  const dev = isDevelopmentEnvironment();
   let secret: string | null = null;
   try {
     secret = unsignValue(jar.get(sessionCookieName)?.value);
   } catch (error) {
-    if (env !== "local" && env !== "test") {
+    if (!dev) {
       throw error;
     }
   }
@@ -59,7 +59,7 @@ export async function getSession(): Promise<SeatdSession> {
   }
 
   if (
-    (env === "local" || env === "test") &&
+    dev &&
     process.env.SEATD_WEB_DEV_SESSION !== "disabled"
   ) {
     if (process.env.SEATD_WEB_DEV_SESSION === "platform") {
@@ -78,12 +78,12 @@ export async function getSession(): Promise<SeatdSession> {
 
 export async function getCookieSession(): Promise<SeatdSession | null> {
   const jar = await cookies();
-  const env = process.env.SEATD_ENV ?? "local";
+  const dev = isDevelopmentEnvironment();
   let secret: string | null = null;
   try {
     secret = unsignValue(jar.get(sessionCookieName)?.value);
   } catch (error) {
-    if (env !== "local" && env !== "test") {
+    if (!dev) {
       throw error;
     }
   }
@@ -91,22 +91,18 @@ export async function getCookieSession(): Promise<SeatdSession | null> {
     return null;
   }
 
-  const apiSession = await validateAPISession(secret);
-  return apiSession ? seatdSessionFromAPI(apiSession, secret) : null;
+  try {
+    const apiSession = await validateAPISession(secret);
+    return apiSession ? seatdSessionFromAPI(apiSession, secret) : null;
+  } catch (error) {
+    console.error("optional session validation failed", error);
+    return null;
+  }
 }
 
 export function canAccessOwner(session: SeatdSession): boolean {
   return session.roles.some(
     (role) => role === "organisation_owner" || role === "location_manager",
-  );
-}
-
-export function needsOwnerOnboarding(session: SeatdSession): boolean {
-  return (
-    Boolean(session.sessionSecret) &&
-    session.organisationId === "" &&
-    session.locationId === "" &&
-    session.roles.length === 0
   );
 }
 
@@ -124,7 +120,7 @@ function seatdSessionFromAPI(
     locations.find((item) => item.status === "active") ?? locations[0];
   const organisationId =
     location?.organisationId ?? memberships[0]?.organisationId ?? "";
-  const roles = memberships
+  const tenantRoles = memberships
     .filter((membership) => membership.organisationId === organisationId)
     .filter(
       (membership) =>
@@ -133,12 +129,19 @@ function seatdSessionFromAPI(
         membership.locationId === location.id,
     )
     .map((membership) => membership.role as SeatdRole);
+  const platformRoles = memberships
+    .filter((membership) => !membership.organisationId)
+    .map((membership) => membership.role as SeatdRole);
   return {
     actorRef: apiSession.actorRef,
     displayName: apiSession.displayName,
     organisationId,
     locationId: location?.id ?? "",
-    roles: Array.from(new Set(roles)),
+    roles: Array.from(new Set([...tenantRoles, ...platformRoles])),
     sessionSecret: secret,
   };
+}
+
+function isDevelopmentEnvironment() {
+  return process.env.SEATD_ENV === "local" || process.env.SEATD_ENV === "test";
 }

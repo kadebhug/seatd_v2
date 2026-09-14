@@ -19,7 +19,7 @@ func TestMemberManagementProvisionByEmail(t *testing.T) {
 	ctx := context.Background()
 	pool := setupHTTPAPIDatabase(t, ctx)
 	fixture := createDeviceAuthzFixture(t, ctx, pool)
-	handler := NewHandler(app.Config{}, nil, pool)
+	handler := NewHandler(app.Config{Environment: app.EnvTest}, nil, pool)
 	email := "invited-" + uuid.NewString() + "@example.test"
 
 	createBody := `{"scope":"location","locationId":"` + fixture.OtherLocation.ID.String() + `","email":"` + email + `","displayName":"Invited Manager","role":"location_manager"}`
@@ -100,7 +100,7 @@ func TestMemberManagementProtectsLastOrganisationOwner(t *testing.T) {
 	ctx := context.Background()
 	pool := setupHTTPAPIDatabase(t, ctx)
 	fixture := createDeviceAuthzFixture(t, ctx, pool)
-	handler := NewHandler(app.Config{}, nil, pool)
+	handler := NewHandler(app.Config{Environment: app.EnvTest}, nil, pool)
 
 	listRec := assertDeviceRequestStatus(t, handler, http.MethodGet, "/v1/memberships", fixture, uuid.Nil, fixture.OwnerRef, "", http.StatusOK)
 	var list struct {

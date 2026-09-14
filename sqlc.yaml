@@ -13,6 +13,11 @@ sql:
       - "infra/database/migrations/000009_analytics_reporting.up.sql"
       - "infra/database/migrations/000010_integrations_reconciliation.up.sql"
       - "infra/database/migrations/000011_web_sessions.up.sql"
+      - "infra/database/migrations/000012_member_management.up.sql"
+      - "infra/database/migrations/000013_analytics_rebuild_runs.up.sql"
+      - "infra/database/migrations/000014_platform_admin_write_permission.up.sql"
+      - "infra/database/migrations/000015_platform_admin_membership.up.sql"
+      - "infra/database/migrations/000016_platform_admin_manage_admins_permission.up.sql"
     queries:
       - "internal/store/queries"
     gen:

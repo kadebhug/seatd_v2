@@ -31,6 +31,17 @@ func TestLoadConfig(t *testing.T) {
 	}
 }
 
+func TestLoadConfigDefaultsToProduction(t *testing.T) {
+	cfg, err := LoadConfig("api", 8080, BuildInfo{})
+	if err != nil {
+		t.Fatalf("LoadConfig() error = %v", err)
+	}
+
+	if cfg.Environment != EnvProduction {
+		t.Fatalf("Environment = %q, want %q", cfg.Environment, EnvProduction)
+	}
+}
+
 func TestLoadConfigRejectsInvalidEnvironment(t *testing.T) {
 	t.Setenv("SEATD_ENV", "qa")
 

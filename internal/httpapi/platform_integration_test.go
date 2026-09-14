@@ -23,7 +23,7 @@ func TestPlatformAdminRoutesAuthorizeAndAudit(t *testing.T) {
 	ctx := context.Background()
 	pool := setupHTTPAPIDatabase(t, ctx)
 	fixture := createPlatformFixture(t, ctx, pool)
-	handler := NewHandler(app.Config{}, nil, pool)
+	handler := NewHandler(app.Config{Environment: app.EnvTest}, nil, pool)
 
 	t.Run("non admin forbidden", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/v1/platform/tenants", nil)
@@ -85,7 +85,7 @@ func TestPlatformAdminSuspendReactivate(t *testing.T) {
 	ctx := context.Background()
 	pool := setupHTTPAPIDatabase(t, ctx)
 	fixture := createPlatformFixture(t, ctx, pool)
-	handler := NewHandler(app.Config{}, nil, pool)
+	handler := NewHandler(app.Config{Environment: app.EnvTest}, nil, pool)
 
 	suspendReq := func(actorRef, body string) *httptest.ResponseRecorder {
 		req := httptest.NewRequest(http.MethodPost, "/v1/platform/tenants/"+fixture.Organisation.ID.String()+"/suspend", strings.NewReader(body))
@@ -157,10 +157,12 @@ func createPlatformFixture(t *testing.T, ctx context.Context, pool *pgxpool.Pool
 	t.Helper()
 
 	suffix := strings.ReplaceAll(uuid.NewString(), "-", "")
-	platformRef := "user:platform-" + suffix
-	ownerRef := "user:owner-" + suffix
-	readOnlyAdminRef := "user:platform-ro-" + suffix
-	readOnlyAdminRole := "platform_admin_read_only_test_" + suffix
+	platformProfileID := uuid.New()
+	ownerProfileID := uuid.New()
+	readOnlyAdminProfileID := uuid.New()
+	platformRef := "user:" + platformProfileID.String()
+	ownerRef := "user:" + ownerProfileID.String()
+	readOnlyAdminRef := "user:" + readOnlyAdminProfileID.String()
 
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -173,6 +175,45 @@ func createPlatformFixture(t *testing.T, ctx context.Context, pool *pgxpool.Pool
 		t.Fatalf("set admin context: %v", err)
 	}
 	q := db.New(tx)
+	if _, err := q.CreateUserProfile(ctx, db.CreateUserProfileParams{
+		DisplayName: "Platform Admin",
+		Email:       pgtype.Text{String: "platform-" + suffix + "@example.test", Valid: true},
+	}); err != nil {
+		t.Fatalf("create platform profile: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+UPDATE user_profiles
+SET id = $1
+WHERE email = $2
+`, platformProfileID, "platform-"+suffix+"@example.test"); err != nil {
+		t.Fatalf("set platform profile id: %v", err)
+	}
+	if _, err := q.CreateUserProfile(ctx, db.CreateUserProfileParams{
+		DisplayName: "Owner",
+		Email:       pgtype.Text{String: "owner-" + suffix + "@example.test", Valid: true},
+	}); err != nil {
+		t.Fatalf("create owner profile: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+UPDATE user_profiles
+SET id = $1
+WHERE email = $2
+`, ownerProfileID, "owner-"+suffix+"@example.test"); err != nil {
+		t.Fatalf("set owner profile id: %v", err)
+	}
+	if _, err := q.CreateUserProfile(ctx, db.CreateUserProfileParams{
+		DisplayName: "Read Only Admin",
+		Email:       pgtype.Text{String: "platform-ro-" + suffix + "@example.test", Valid: true},
+	}); err != nil {
+		t.Fatalf("create read-only admin profile: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+UPDATE user_profiles
+SET id = $1
+WHERE email = $2
+`, readOnlyAdminProfileID, "platform-ro-"+suffix+"@example.test"); err != nil {
+		t.Fatalf("set read-only admin profile id: %v", err)
+	}
 	org, err := q.CreateOrganisation(ctx, db.CreateOrganisationParams{
 		Slug:               "platform-" + suffix,
 		Name:               "Platform Tenant",
@@ -204,36 +245,25 @@ func createPlatformFixture(t *testing.T, ctx context.Context, pool *pgxpool.Pool
 	if _, err := tx.Exec(ctx, "UPDATE locations SET status = 'disabled' WHERE id = $1", disabledLocation.ID); err != nil {
 		t.Fatalf("disable location: %v", err)
 	}
-	if _, err := q.CreateOrganisationMembership(ctx, db.CreateOrganisationMembershipParams{
-		OrganisationID: org.ID,
-		MemberRef:      platformRef,
-		Role:           identity.RolePlatformAdmin,
+	if _, err := q.CreatePlatformMembership(ctx, db.CreatePlatformMembershipParams{
+		UserProfileID:     platformProfileID,
+		Role:              identity.RolePlatformAdmin,
+		GrantedByActorRef: "test",
 	}); err != nil {
 		t.Fatalf("create platform membership: %v", err)
 	}
 	if _, err := q.CreateOrganisationMembership(ctx, db.CreateOrganisationMembershipParams{
 		OrganisationID: org.ID,
+		UserProfileID:  uuid.NullUUID{UUID: ownerProfileID, Valid: true},
 		MemberRef:      ownerRef,
 		Role:           identity.RoleOrganisationOwner,
 	}); err != nil {
 		t.Fatalf("create owner membership: %v", err)
 	}
-	if _, err := tx.Exec(ctx, `
-INSERT INTO roles (name, scope, description)
-VALUES ($1, 'platform', 'test-only: platform.admin without platform.admin.write')
-`, readOnlyAdminRole); err != nil {
-		t.Fatalf("create read-only platform admin test role: %v", err)
-	}
-	if _, err := tx.Exec(ctx, `
-INSERT INTO role_permissions (role_name, permission_name)
-VALUES ($1, $2)
-`, readOnlyAdminRole, identity.PermissionPlatformAdmin); err != nil {
-		t.Fatalf("grant read-only platform admin test role permission: %v", err)
-	}
-	if _, err := q.CreateOrganisationMembership(ctx, db.CreateOrganisationMembershipParams{
-		OrganisationID: org.ID,
-		MemberRef:      readOnlyAdminRef,
-		Role:           readOnlyAdminRole,
+	if _, err := q.CreatePlatformMembership(ctx, db.CreatePlatformMembershipParams{
+		UserProfileID:     readOnlyAdminProfileID,
+		Role:              identity.RoleSupport,
+		GrantedByActorRef: "test",
 	}); err != nil {
 		t.Fatalf("create read-only platform admin membership: %v", err)
 	}

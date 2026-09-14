@@ -35,7 +35,6 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
     if (canAccessOwner(session)) {
       redirect("/owner");
     }
-    redirect("/");
   }
 
   const params = await searchParams;

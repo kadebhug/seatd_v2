@@ -1,7 +1,7 @@
 SHELL := /usr/bin/env bash
 .DEFAULT_GOAL := help
 
-.PHONY: help bootstrap check generate fmt lint test build start start-frontends start-landing clean
+.PHONY: help bootstrap check generate fmt lint test build start start-frontends start-landing seed-platform-admin clean
 
 help: ## List supported local commands.
 	@awk 'BEGIN {FS = ":.*## "; printf "Seatd development commands:\n"} /^[a-zA-Z_-]+:.*## / {printf "  %-16s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -35,6 +35,10 @@ start-frontends: ## Start the web and guest frontends.
 
 start-landing: ## Start the marketing landing page.
 	npm run dev --workspace=@seatd/landing
+
+seed-platform-admin: ## Seed a pending platform admin grant by email.
+	@test -n "$(EMAIL)" || (echo "EMAIL is required" >&2; exit 2)
+	go run ./apps/api/cmd/seed-platform-admin --email "$(EMAIL)" --added-by "$${ADDED_BY:-seed:make}"
 
 clean: ## Remove generated local build output.
 	@./scripts/run-workspace-command.sh clean

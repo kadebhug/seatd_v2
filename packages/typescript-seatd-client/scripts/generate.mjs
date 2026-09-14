@@ -28,6 +28,17 @@ export const platformTenantEndpoint = "/v1/platform/tenants/{id}";
 export const platformTenantDiagnosticsEndpoint = "/v1/platform/tenants/{id}/diagnostics";
 export const platformTenantSuspendEndpoint = "/v1/platform/tenants/{id}/suspend";
 export const platformTenantReactivateEndpoint = "/v1/platform/tenants/{id}/reactivate";
+export const platformAdminsEndpoint = "/v1/platform/admins";
+export const platformAdminInvitationsEndpoint = "/v1/platform/admins/invitations";
+export const platformAdminInvitationEndpoint = "/v1/platform/admins/invitations/{id}";
+export const platformAdminRevokeEndpoint = "/v1/platform/admins/{id}/revoke";
+export const platformAdminReactivateEndpoint = "/v1/platform/admins/{id}/reactivate";
+export const platformTenantOwnersEndpoint = "/v1/platform/tenants/{id}/owners";
+export const platformTenantOwnerSuspendEndpoint = "/v1/platform/tenants/{id}/owners/{membershipId}/suspend";
+export const platformTenantOwnerReactivateEndpoint = "/v1/platform/tenants/{id}/owners/{membershipId}/reactivate";
+export const platformTenantOwnerReassignEndpoint = "/v1/platform/tenants/{id}/owners/{membershipId}/reassign";
+export const platformTenantAuditEndpoint = "/v1/platform/tenants/{id}/audit";
+export const ownerSetupEndpoint = "/v1/owner/setup";
 export const organisationEndpoint = "/v1/organisations/{id}";
 export const ownerSnapshotEndpoint = "/v1/owner/snapshot";
 export const locationEndpoint = "/v1/locations/{id}";
@@ -78,7 +89,6 @@ export const integrationWebhookEndpoint = "/v1/integrations/{vendor}/webhooks";
 export const membershipsEndpoint = "/v1/memberships";
 export const membershipEndpoint = "/v1/memberships/{scope}/{id}";
 export const membershipDisableEndpoint = "/v1/memberships/{scope}/{id}/disable";
-export const ownerOnboardingEndpoint = "/v1/onboarding/owner";
 export const occupyTableEndpoint = "/v1/tables/{id}/occupy";
 export const clearTableEndpoint = "/v1/tables/{id}/clear";
 export const acknowledgeAssistEndpoint = "/v1/assists/{id}/acknowledge";
@@ -331,6 +341,90 @@ export interface PlatformTenantDetail {
   diagnostics: PlatformDiagnostics;
 }
 
+export interface PlatformAdmin {
+  id: string;
+  userProfileId: string;
+  displayName?: string;
+  email?: string;
+  role: "platform_admin" | "support";
+  grantedByActorRef: string;
+  grantedAt: string;
+  disabledAt?: string;
+  disabledByActorRef?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PlatformAdminGrant {
+  id: string;
+  email: string;
+  role: "platform_admin" | "support";
+  invitedByActorRef: string;
+  createdAt: string;
+  consumedAt?: string;
+  consumedByUserProfileId?: string;
+  revokedAt?: string;
+  revokedByActorRef?: string;
+}
+
+export interface PlatformAdminsResponse {
+  admins: PlatformAdmin[];
+  invitations: PlatformAdminGrant[];
+}
+
+export interface PlatformAdminInviteRequest {
+  email: string;
+  role: "platform_admin" | "support";
+  reason: string;
+}
+
+export interface PlatformTenantCreateRequest {
+  organisationName: string;
+  organisationSlug: string;
+  locationName: string;
+  locationSlug: string;
+  timezone: string;
+  ownerEmail: string;
+  ownerDisplayName?: string;
+  reason: string;
+}
+
+export interface PlatformTenantCreateResponse {
+  tenant: PlatformTenantDetail;
+  owner: Membership;
+}
+
+export interface PlatformOwnersResponse {
+  owners: Membership[];
+}
+
+export interface PlatformOwnerInviteRequest {
+  email: string;
+  displayName?: string;
+  reason: string;
+}
+
+export interface PlatformOwnerReassignRequest {
+  toEmail: string;
+  reason: string;
+}
+
+export interface PlatformAuditEvent {
+  id: string;
+  organisationId?: string;
+  locationId?: string;
+  actorRef: string;
+  action: string;
+  targetType: string;
+  targetId: string;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface PlatformTenantAuditResponse {
+  events: PlatformAuditEvent[];
+}
+
 export interface PlatformDiagnosticsResponse {
   diagnostics: PlatformDiagnostics;
 }
@@ -475,6 +569,20 @@ export interface OwnerOnboardingResponse {
   session: WebSession;
 }
 
+export interface OwnerSetupRequest {
+  floor?: OwnerOnboardingFloorRequest;
+  servicePeriods?: OwnerOnboardingServicePeriodRequest[];
+}
+
+export interface OwnerSetupResponse {
+  organisation: Organisation;
+  location: Location;
+  floor?: Floor;
+  zones: Zone[];
+  tables: Table[];
+  servicePeriods: ServicePeriod[];
+}
+
 export interface DeviceHeartbeatRequest {
   appVersion: string;
   capabilities?: Record<string, unknown>;
@@ -584,7 +692,7 @@ export interface IntegrationReconciliationResponse {
 
 export interface Membership {
   id: string;
-  scope: "organisation" | "location";
+  scope: "platform" | "organisation" | "location";
   organisationId: string;
   locationId?: string;
   userProfileId?: string;

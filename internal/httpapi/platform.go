@@ -95,7 +95,8 @@ type platformTenantDetailDTO struct {
 }
 
 type platformRequestContext struct {
-	ActorRef string
+	ActorRef      string
+	UserProfileID uuid.UUID
 }
 
 func (api *API) searchPlatformTenants(w http.ResponseWriter, r *http.Request) {
@@ -291,7 +292,16 @@ func (api *API) platformRequestContext(w http.ResponseWriter, r *http.Request) (
 	}
 	if isDevelopmentEnvironment(api.cfg.Environment) {
 		if actorRef := strings.TrimSpace(r.Header.Get(headerActorRef)); actorRef != "" {
-			return platformRequestContext{ActorRef: actorRef}, true
+			userProfileID, err := userProfileIDFromActorRef(actorRef)
+			if err != nil {
+				writeError(w, http.StatusBadRequest, "validation_failed", headerActorRef+" must be user:<uuid> for platform routes", nil)
+				return platformRequestContext{}, false
+			}
+			if _, err := api.queries.GetActiveUserProfileByActorRef(r.Context(), userProfileID); err != nil {
+				api.writeIdentityError(w, identity.ErrUnauthorized)
+				return platformRequestContext{}, false
+			}
+			return platformRequestContext{ActorRef: actorRef, UserProfileID: userProfileID}, true
 		}
 	}
 	if hasClientIdentityHeaders(r) {
@@ -307,11 +317,11 @@ func (api *API) platformRequestContext(w http.ResponseWriter, r *http.Request) (
 		api.writeIdentityError(w, err)
 		return platformRequestContext{}, false
 	}
-	return platformRequestContext{ActorRef: actorRefForSession(session)}, true
+	return platformRequestContext{ActorRef: actorRefForSession(session), UserProfileID: session.User.ID}, true
 }
 
 func (api *API) inAuthorizedPlatformTx(ctx context.Context, req platformRequestContext, permission string, fn func(*db.Queries) error) error {
-	if strings.TrimSpace(req.ActorRef) == "" {
+	if strings.TrimSpace(req.ActorRef) == "" || req.UserProfileID == uuid.Nil {
 		return identity.ErrUnauthorized
 	}
 	tx, err := api.pool.BeginTx(ctx, pgx.TxOptions{})
@@ -323,7 +333,7 @@ func (api *API) inAuthorizedPlatformTx(ctx context.Context, req platformRequestC
 		return rollback(tx, ctx, fmt.Errorf("setting platform admin context: %w", err))
 	}
 	allowed, err := q.ActorHasPlatformPermission(ctx, db.ActorHasPlatformPermissionParams{
-		MemberRef:      req.ActorRef,
+		UserProfileID:  req.UserProfileID,
 		PermissionName: permission,
 	})
 	if err != nil {
@@ -379,6 +389,10 @@ func (api *API) writePlatformError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusUnauthorized, "unauthorized", "credential is invalid", nil)
 	case errors.Is(err, identity.ErrForbidden):
 		writeError(w, http.StatusForbidden, "forbidden", "permission denied", nil)
+	case errors.Is(err, identity.ErrValidation):
+		writeError(w, http.StatusBadRequest, "validation_failed", "request is invalid", nil)
+	case errors.Is(err, identity.ErrAlreadyExists):
+		writeError(w, http.StatusConflict, "already_exists", "resource already exists", nil)
 	case errors.Is(err, pgx.ErrNoRows):
 		writeError(w, http.StatusNotFound, "not_found", "resource not found", nil)
 	default:

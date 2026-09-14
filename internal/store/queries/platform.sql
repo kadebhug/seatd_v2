@@ -199,3 +199,112 @@ SET status = $2,
     updated_at = now()
 WHERE id = $1
 RETURNING id, slug, name, status, legacy_restaurant_id, created_at, updated_at;
+
+-- name: ListPlatformMemberships :many
+SELECT
+    pm.id,
+    pm.user_profile_id,
+    up.display_name,
+    up.email,
+    pm.role,
+    pm.granted_by_actor_ref,
+    pm.granted_at,
+    pm.disabled_at,
+    pm.disabled_by_actor_ref,
+    pm.created_at,
+    pm.updated_at
+FROM platform_memberships pm
+JOIN user_profiles up ON up.id = pm.user_profile_id
+ORDER BY pm.disabled_at NULLS FIRST, pm.role, up.display_name, up.email;
+
+-- name: ListPlatformAdminGrants :many
+SELECT *
+FROM platform_admin_grants
+ORDER BY revoked_at NULLS FIRST, consumed_at NULLS FIRST, created_at DESC;
+
+-- name: CreatePlatformAdminGrant :one
+INSERT INTO platform_admin_grants (email, role, invited_by_actor_ref)
+VALUES (lower(btrim($1)), $2, $3)
+ON CONFLICT (lower(btrim(email))) WHERE consumed_at IS NULL AND revoked_at IS NULL
+DO UPDATE SET
+    role = EXCLUDED.role,
+    invited_by_actor_ref = EXCLUDED.invited_by_actor_ref
+RETURNING *;
+
+-- name: RevokePlatformAdminGrant :one
+UPDATE platform_admin_grants
+SET revoked_at = now(),
+    revoked_by_actor_ref = $2
+WHERE id = $1
+  AND consumed_at IS NULL
+  AND revoked_at IS NULL
+RETURNING *;
+
+-- name: ConsumePlatformAdminGrant :one
+UPDATE platform_admin_grants
+SET consumed_at = now(),
+    consumed_by_user_profile_id = $1
+WHERE lower(btrim(email)) = lower(btrim($2))
+  AND consumed_at IS NULL
+  AND revoked_at IS NULL
+RETURNING role, invited_by_actor_ref;
+
+-- name: CreatePlatformMembership :one
+INSERT INTO platform_memberships (user_profile_id, role, granted_by_actor_ref)
+VALUES ($1, $2, $3)
+ON CONFLICT (user_profile_id) WHERE disabled_at IS NULL DO UPDATE
+SET role = EXCLUDED.role,
+    updated_at = now()
+RETURNING *;
+
+-- name: DisablePlatformMembership :one
+UPDATE platform_memberships
+SET disabled_at = now(),
+    disabled_by_actor_ref = $2,
+    updated_at = now()
+WHERE id = $1
+  AND disabled_at IS NULL
+RETURNING *;
+
+-- name: ReactivatePlatformMembership :one
+UPDATE platform_memberships
+SET disabled_at = NULL,
+    disabled_by_actor_ref = NULL,
+    updated_at = now()
+WHERE id = $1
+RETURNING *;
+
+-- name: CountActivePlatformAdmins :one
+SELECT count(*)::integer
+FROM platform_memberships
+WHERE role = 'platform_admin'
+  AND disabled_at IS NULL;
+
+-- name: GetPlatformMembership :one
+SELECT *
+FROM platform_memberships
+WHERE id = $1;
+
+-- name: SetOrganisationOnboarded :one
+UPDATE organisations
+SET onboarded_at = now(),
+    updated_at = now()
+WHERE id = $1
+RETURNING *;
+
+-- name: ListPlatformTenantOwners :many
+SELECT om.id, 'organisation' AS scope, om.organisation_id, NULL::uuid AS location_id, om.user_profile_id,
+       up.display_name, up.email, om.member_ref, om.role, om.disabled_at
+FROM organisation_memberships om
+LEFT JOIN user_profiles up ON up.id = om.user_profile_id
+WHERE om.organisation_id = $1
+  AND om.role = 'organisation_owner'
+  AND ($2::boolean OR om.disabled_at IS NULL)
+ORDER BY om.disabled_at NULLS FIRST, up.display_name, om.member_ref;
+
+-- name: ListPlatformTenantAudit :many
+SELECT *
+FROM audit_events
+WHERE organisation_id = $1
+ORDER BY created_at DESC
+LIMIT $2;

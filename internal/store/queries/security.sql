@@ -85,6 +85,13 @@ WHERE user_profile_id = $1
   AND disabled_at IS NULL
 ORDER BY role, member_ref;
 
+-- name: ListUserPlatformMemberships :many
+SELECT *
+FROM platform_memberships
+WHERE user_profile_id = $1
+  AND disabled_at IS NULL
+ORDER BY role;
+
 -- name: GetRolePermissions :many
 SELECT permission_name
 FROM role_permissions
@@ -156,12 +163,18 @@ SELECT EXISTS (
 -- name: ActorHasPlatformPermission :one
 SELECT EXISTS (
     SELECT 1
-    FROM organisation_memberships om
-    JOIN role_permissions rp ON rp.role_name = om.role
-    WHERE om.member_ref = $1
-      AND om.disabled_at IS NULL
+    FROM platform_memberships pm
+    JOIN role_permissions rp ON rp.role_name = pm.role
+    WHERE pm.user_profile_id = $1
+      AND pm.disabled_at IS NULL
       AND rp.permission_name = $2
 ) AS has_permission;
+
+-- name: GetActiveUserProfileByActorRef :one
+SELECT *
+FROM user_profiles
+WHERE id = $1
+  AND status = 'active';
 
 -- name: CreateUserOrganisationMembership :one
 INSERT INTO organisation_memberships (organisation_id, user_profile_id, member_ref, role)

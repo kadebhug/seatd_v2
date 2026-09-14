@@ -7,12 +7,6 @@ type TableDraft = {
   capacityLabel: string;
 };
 
-type StaffDraft = {
-  name: string;
-  email: string;
-  role: string;
-};
-
 const weekdays = [
   { label: "Sun", value: 0 },
   { label: "Mon", value: 1 },
@@ -31,13 +25,6 @@ const defaultTables: TableDraft[] = Array.from({ length: 6 }, (_, index) => ({
 export function OwnerOnboardingForm({
   displayName,
 }: Readonly<{ displayName: string }>) {
-  const [organisationName, setOrganisationName] = useState("");
-  const [organisationSlug, setOrganisationSlug] = useState("");
-  const [locationName, setLocationName] = useState("");
-  const [locationSlug, setLocationSlug] = useState("");
-  const [timezone, setTimezone] = useState(
-    Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
-  );
   const [floorName, setFloorName] = useState("Main floor");
   const [floorSlug, setFloorSlug] = useState("main-floor");
   const [zoneName, setZoneName] = useState("Dining room");
@@ -46,9 +33,6 @@ export function OwnerOnboardingForm({
   const [startTime, setStartTime] = useState("17:00");
   const [endTime, setEndTime] = useState("22:00");
   const [daysOfWeek, setDaysOfWeek] = useState([1, 2, 3, 4, 5, 6]);
-  const [staff, setStaff] = useState<StaffDraft[]>([
-    { name: "", email: "", role: "waiter" },
-  ]);
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -69,29 +53,16 @@ export function OwnerOnboardingForm({
     );
   }
 
-  function updateStaff(index: number, patch: Partial<StaffDraft>) {
-    setStaff((current) =>
-      current.map((item, candidate) =>
-        candidate === index ? { ...item, ...patch } : item,
-      ),
-    );
-  }
-
   async function submit() {
     setBusy(true);
     setStatus("");
     setError("");
     setPairingCode("");
     try {
-      const response = await fetch("/api/onboarding/owner", {
+      const response = await fetch("/api/owner/setup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          organisationName,
-          organisationSlug,
-          locationName,
-          locationSlug,
-          timezone,
           floor: {
             name: floorName,
             slug: floorSlug,
@@ -114,18 +85,15 @@ export function OwnerOnboardingForm({
           servicePeriods: [
             { name: serviceName, daysOfWeek, startTime, endTime },
           ],
-          staff: staff.filter(
-            (item) => item.name.trim() !== "" || item.email.trim() !== "",
-          ),
         }),
       });
       const body = await response.json();
       if (!response.ok) {
-        setError(body.error?.message ?? "Onboarding failed.");
+        setError(body.error?.message ?? "Setup failed.");
         return;
       }
       setCreatedLocationId(body.location.id);
-      setStatus("Venue created.");
+      setStatus("Setup complete.");
     } finally {
       setBusy(false);
     }
@@ -185,7 +153,7 @@ export function OwnerOnboardingForm({
           ) : null}
         </article>
         <article className="panel form">
-          <h2>{organisationName}</h2>
+          <h2>{displayName}</h2>
           <p className="empty-state">{status}</p>
           <a className="button-link" href="/owner">
             Open Owner Workspace
@@ -208,76 +176,6 @@ export function OwnerOnboardingForm({
         void submit();
       }}
     >
-      <section className="grid two">
-        <article className="panel form">
-          <h2>Organisation</h2>
-          <label>
-            Name
-            <input
-              autoComplete="organization"
-              onBlur={() => {
-                if (!organisationSlug) {
-                  setOrganisationSlug(slugify(organisationName));
-                }
-              }}
-              onChange={(event) => setOrganisationName(event.target.value)}
-              placeholder={`${displayName}'s restaurant group`}
-              required
-              value={organisationName}
-            />
-          </label>
-          <label>
-            Slug
-            <input
-              autoComplete="off"
-              onChange={(event) => setOrganisationSlug(event.target.value)}
-              required
-              spellCheck={false}
-              value={organisationSlug}
-            />
-          </label>
-        </article>
-
-        <article className="panel form">
-          <h2>Location</h2>
-          <label>
-            Name
-            <input
-              autoComplete="off"
-              onBlur={() => {
-                if (!locationSlug) {
-                  setLocationSlug(slugify(locationName));
-                }
-              }}
-              onChange={(event) => setLocationName(event.target.value)}
-              placeholder="Main Street"
-              required
-              value={locationName}
-            />
-          </label>
-          <label>
-            Slug
-            <input
-              autoComplete="off"
-              onChange={(event) => setLocationSlug(event.target.value)}
-              required
-              spellCheck={false}
-              value={locationSlug}
-            />
-          </label>
-          <label>
-            Timezone
-            <input
-              autoComplete="off"
-              onChange={(event) => setTimezone(event.target.value)}
-              required
-              spellCheck={false}
-              value={timezone}
-            />
-          </label>
-        </article>
-      </section>
-
       <section className="grid two">
         <article className="panel form">
           <h2>Service Period</h2>
@@ -387,65 +285,9 @@ export function OwnerOnboardingForm({
         </article>
       </section>
 
-      <section className="panel form">
-        <h2>Staff</h2>
-        <div className="staff-draft-list">
-          {staff.map((item, index) => (
-            <div className="staff-draft-row" key={index}>
-              <label>
-                Name
-                <input
-                  onChange={(event) =>
-                    updateStaff(index, { name: event.target.value })
-                  }
-                  value={item.name}
-                />
-              </label>
-              <label>
-                Email
-                <input
-                  autoComplete="email"
-                  onChange={(event) =>
-                    updateStaff(index, { email: event.target.value })
-                  }
-                  type="email"
-                  value={item.email}
-                />
-              </label>
-              <label>
-                Role
-                <select
-                  autoComplete="off"
-                  onChange={(event) =>
-                    updateStaff(index, { role: event.target.value })
-                  }
-                  value={item.role}
-                >
-                  <option value="waiter">Waiter</option>
-                  <option value="location_manager">Location manager</option>
-                  <option value="read_only">Read only</option>
-                </select>
-              </label>
-            </div>
-          ))}
-        </div>
-        <button
-          className="secondary"
-          onClick={() =>
-            setStaff((current) => [
-              ...current,
-              { name: "", email: "", role: "waiter" },
-            ])
-          }
-          type="button"
-        >
-          Add Staff Row
-        </button>
-      </section>
-
       <div className="form-actions">
         <button disabled={busy || daysOfWeek.length === 0} type="submit">
-          {busy ? "Creating..." : "Create Venue"}
+          {busy ? "Saving..." : "Finish Setup"}
         </button>
       </div>
       {error ? (
@@ -455,12 +297,4 @@ export function OwnerOnboardingForm({
       ) : null}
     </form>
   );
-}
-
-function slugify(value: string) {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
 }

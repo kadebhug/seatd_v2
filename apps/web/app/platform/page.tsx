@@ -34,6 +34,14 @@ export default async function PlatformPage({
       <section className="page-heading">
         <p className="eyebrow">Platform</p>
         <h1>Tenant Operations</h1>
+        <div className="platform-tenant-actions">
+          <Link className="button-link" href="/platform/tenants/new">
+            New Tenant
+          </Link>
+          <Link className="button-link secondary" href="/platform/admins">
+            Admins
+          </Link>
+        </div>
       </section>
 
       <section className="platform-console">

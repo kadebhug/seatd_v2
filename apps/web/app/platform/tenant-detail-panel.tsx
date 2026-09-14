@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { PlatformTenantDetail } from "@seatd/typescript-seatd-client";
 import { StatusBadge } from "../components/status-badge";
 import { TenantActions } from "./tenant-actions";
+import { OwnerActions } from "./owner-actions";
 
 type Props = {
   initialDetail: PlatformTenantDetail;
@@ -132,6 +133,8 @@ export function TenantDetailPanel({ initialDetail }: Readonly<Props>) {
           </div>
         </section>
       </section>
+
+      <OwnerActions tenantId={detail.tenant.id} />
     </section>
   );
 }

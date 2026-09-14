@@ -42,7 +42,7 @@ func LoadConfig(serviceName string, defaultPort int, build BuildInfo) (Config, e
 		return Config{}, errors.New("service name is required")
 	}
 
-	env := getEnv("SEATD_ENV", EnvLocal)
+	env := getEnv("SEATD_ENV", EnvProduction)
 	if !validEnvironment(env) {
 		return Config{}, fmt.Errorf("SEATD_ENV must be local, test, staging, or production: %q", env)
 	}

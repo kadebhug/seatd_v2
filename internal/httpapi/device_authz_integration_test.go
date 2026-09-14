@@ -28,7 +28,7 @@ func TestDeviceManagementAuthorizesActorPermissions(t *testing.T) {
 	ctx := context.Background()
 	pool := setupHTTPAPIDatabase(t, ctx)
 	fixture := createDeviceAuthzFixture(t, ctx, pool)
-	handler := NewHandler(app.Config{}, nil, pool)
+	handler := NewHandler(app.Config{Environment: app.EnvTest}, nil, pool)
 
 	t.Run("actor without permission", func(t *testing.T) {
 		assertDeviceRequestForbidden(t, handler, http.MethodGet, "/v1/devices", fixture, fixture.Location.ID, fixture.WaiterRef, "")
