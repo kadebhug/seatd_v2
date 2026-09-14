@@ -51,34 +51,50 @@ export function DemoForm() {
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setState({ kind: "submitting" });
-    try {
-      const response = await fetch("/api/demo", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(values),
-      });
-      const payload = (await response.json()) as {
-        ok?: boolean;
-        message?: string;
-        fields?: FieldErrors;
-      };
-      if (!response.ok) {
-        setState({
-          kind: "error",
-          message: payload.message ?? "Check the highlighted fields and try again.",
-          fields: payload.fields ?? {},
-        });
-        return;
-      }
-      setDirty(false);
-      setState({ kind: "success" });
-    } catch {
+    const fields = validate(values);
+
+    if (Object.keys(fields).length > 0) {
       setState({
         kind: "error",
-        message: "Could not send that just now. Try again in a moment.",
-        fields: {},
+        message: "Check the highlighted fields and try again.",
+        fields,
       });
+      return;
     }
+
+    const subject = encodeURIComponent(`Seatd demo request: ${values.restaurant}`);
+    const body = encodeURIComponent(
+      [
+        "Seatd demo request",
+        "",
+        `Name: ${values.name}`,
+        `Restaurant / group: ${values.restaurant}`,
+        `Email: ${values.email}`,
+        `Phone: ${values.phone || "Not provided"}`,
+        `Tables / locations: ${values.tables}`,
+      ].join("\n"),
+    );
+
+    window.location.href = `mailto:hello@seatd.app?subject=${subject}&body=${body}`;
+    setDirty(false);
+    setState({ kind: "success" });
+  }
+
+  function validate(formValues: typeof initial): FieldErrors {
+    const errors: FieldErrors = {};
+    const name = formValues.name.trim();
+    const restaurant = formValues.restaurant.trim();
+    const email = formValues.email.trim();
+    const tables = formValues.tables.trim();
+
+    if (!name) errors.name = "Enter your name.";
+    if (!restaurant) errors.restaurant = "Enter the restaurant or group name.";
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      errors.email = "Enter a valid email address.";
+    }
+    if (!tables) errors.tables = "Choose how large the floor is.";
+
+    return errors;
   }
 
   const fields = state.kind === "error" ? state.fields : {};

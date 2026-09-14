@@ -444,3 +444,31 @@ func (q *Queries) SearchPlatformTenants(ctx context.Context, arg SearchPlatformT
 	}
 	return items, nil
 }
+
+const setOrganisationStatus = `-- name: SetOrganisationStatus :one
+UPDATE organisations
+SET status = $2,
+    updated_at = now()
+WHERE id = $1
+RETURNING id, slug, name, status, legacy_restaurant_id, created_at, updated_at
+`
+
+type SetOrganisationStatusParams struct {
+	ID     uuid.UUID `json:"id"`
+	Status string    `json:"status"`
+}
+
+func (q *Queries) SetOrganisationStatus(ctx context.Context, arg SetOrganisationStatusParams) (Organisation, error) {
+	row := q.db.QueryRow(ctx, setOrganisationStatus, arg.ID, arg.Status)
+	var i Organisation
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.Name,
+		&i.Status,
+		&i.LegacyRestaurantID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}

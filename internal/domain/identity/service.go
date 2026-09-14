@@ -27,6 +27,7 @@ const (
 	RoleSupport           = "support"
 
 	PermissionPlatformAdmin      = "platform.admin"
+	PermissionPlatformAdminWrite = "platform.admin.write"
 	PermissionOrganisationManage = "organisation.manage"
 	PermissionLocationManage     = "location.manage"
 	PermissionLayoutRead         = "layout.read"

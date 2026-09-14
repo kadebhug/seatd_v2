@@ -56,6 +56,24 @@ type Summary struct {
 	CurrentServicePeriod *WindowMetric
 	Checkpoint           *db.AnalyticsProjectorCheckpoint
 	DataQuality          DataQuality
+	LastRebuildRun       *RebuildRun
+}
+
+// RebuildRun is a durable record of one manual analytics rebuild attempt,
+// tracked independently of analytics_projector_checkpoints so a failure
+// during the rebuild itself does not erase the fact that it ran and failed.
+type RebuildRun struct {
+	ID             uuid.UUID
+	OrganisationID uuid.UUID
+	LocationID     uuid.UUID
+	RequestedBy    string
+	RangeFrom      time.Time
+	RangeTo        time.Time
+	StartedAt      time.Time
+	CompletedAt    *time.Time
+	Status         string
+	DaysProcessed  int32
+	LastError      *string
 }
 
 type TimePoint struct {
@@ -161,6 +179,11 @@ func (s *Service) Summary(ctx context.Context, actor TenantActor, locationID uui
 			result.DataQuality.ProjectorLagSeconds = checkpoint.LagSeconds
 			result.DataQuality.RebuildStatus = checkpoint.RebuildStatus
 		}
+		lastRun, err := latestRebuildRun(ctx, tx, actor.OrganisationID, locationID)
+		if err != nil {
+			return err
+		}
+		result.LastRebuildRun = lastRun
 		return nil
 	})
 	return result, err
@@ -455,14 +478,20 @@ func (s *Service) ArchiveServicePeriod(ctx context.Context, actor TenantActor, i
 	return period, err
 }
 
-func (s *Service) Rebuild(ctx context.Context, arg RebuildParams) error {
+// Rebuild recomputes projected analytics for a location and date range. Every
+// attempt is tracked as a durable analytics_rebuild_runs row: the "running"
+// row is committed before the (potentially failing) rebuild work begins, and
+// is always finished with a "completed" or "failed" status in its own
+// transaction afterward, so a rollback of the rebuild work itself can never
+// erase the record that it ran and how it ended.
+func (s *Service) Rebuild(ctx context.Context, arg RebuildParams) (RebuildRun, error) {
 	if err := arg.TenantActor.validate(); err != nil {
-		return err
+		return RebuildRun{}, err
 	}
 	if arg.LocationID != arg.TenantActor.LocationID || !arg.From.Before(arg.To) {
-		return ErrValidation
+		return RebuildRun{}, ErrValidation
 	}
-	return s.inTenantTx(ctx, arg.TenantActor, func(tx pgx.Tx, q *db.Queries) error {
+	if err := s.inTenantTx(ctx, arg.TenantActor, func(_ pgx.Tx, q *db.Queries) error {
 		allowed, err := q.ActorHasLocationPermission(ctx, db.ActorHasLocationPermissionParams{
 			OrganisationID: arg.OrganisationID,
 			LocationID:     arg.LocationID,
@@ -475,8 +504,57 @@ func (s *Service) Rebuild(ctx context.Context, arg RebuildParams) error {
 		if !allowed {
 			return ErrForbidden
 		}
-		return rebuildRange(ctx, tx, q, arg.OrganisationID, arg.LocationID, arg.From, arg.To)
+		return nil
+	}); err != nil {
+		return RebuildRun{}, err
+	}
+
+	var run RebuildRun
+	if err := s.inTenantTx(ctx, arg.TenantActor, func(tx pgx.Tx, _ *db.Queries) error {
+		created, err := createRebuildRun(ctx, tx, arg.TenantActor, arg.From, arg.To)
+		if err != nil {
+			return err
+		}
+		run = created
+		return nil
+	}); err != nil {
+		return RebuildRun{}, err
+	}
+
+	var daysProcessed int32
+	rebuildErr := s.inTenantTx(ctx, arg.TenantActor, func(tx pgx.Tx, q *db.Queries) error {
+		var err error
+		daysProcessed, err = rebuildRange(ctx, tx, q, arg.OrganisationID, arg.LocationID, arg.From, arg.To)
+		return err
 	})
+
+	status := "completed"
+	lastError := ""
+	if rebuildErr != nil {
+		status = "failed"
+		lastError = rebuildErr.Error()
+	}
+	var finishErr error
+	if err := s.inTenantTx(ctx, arg.TenantActor, func(tx pgx.Tx, _ *db.Queries) error {
+		finished, err := finishRebuildRun(ctx, tx, run.ID, status, daysProcessed, lastError)
+		if err != nil {
+			return err
+		}
+		run = finished
+		return nil
+	}); err != nil {
+		finishErr = err
+	}
+	if rebuildErr != nil {
+		if finishErr != nil {
+			return RebuildRun{}, errors.Join(rebuildErr, finishErr)
+		}
+		return RebuildRun{}, rebuildErr
+	}
+	if finishErr != nil {
+		return RebuildRun{}, finishErr
+	}
+	return run, nil
 }
 
 func (actor TenantActor) validate() error {

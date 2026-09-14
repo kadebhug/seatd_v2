@@ -1,16 +1,23 @@
 "use client";
 
 import type {
+  ExportQRRequest,
   Floor,
   FloorRequest,
   LayoutEditorSnapshotResponse,
+  QRExport,
   Table,
+  TableQRCapability,
   TableRequest,
   TableState,
   Zone,
   ZoneRequest,
 } from "@seatd/typescript-seatd-client";
-import { useMemo, useState } from "react";
+import type { FormEvent } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
+import { QRCodeSVG } from "qrcode.react";
+import { StatusBadge } from "../../components/status-badge";
 import { occupancyLabel } from "../../../lib/occupancy";
 
 type Geometry = {
@@ -269,6 +276,7 @@ export function FloorEditor({
         ) : (
           <p className="empty-state">Select a table to edit its properties.</p>
         )}
+        {selectedState ? <TableQRPanel table={selectedState.table} /> : null}
         {selectedFloor ? (
           <>
             <ZoneForm
@@ -486,6 +494,276 @@ function TableForm({
       </button>
     </form>
   );
+}
+
+function TableQRPanel({ table }: Readonly<{ table: Table }>) {
+  const [capabilities, setCapabilities] = useState<TableQRCapability[] | null>(
+    null,
+  );
+  const [latestExport, setLatestExport] = useState<QRExport | null>(null);
+  const [label, setLabel] = useState("");
+  const [expiresAt, setExpiresAt] = useState("");
+  const [message, setMessage] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    setLatestExport(null);
+    setMessage(null);
+    let cancelled = false;
+    fetch(`/api/owner/tables/${table.id}/qr-capabilities`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((body: { qrCapabilities: TableQRCapability[] } | null) => {
+        if (!cancelled) {
+          setCapabilities(body?.qrCapabilities ?? []);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [table.id]);
+
+  async function refreshList() {
+    const response = await fetch(`/api/owner/tables/${table.id}/qr-capabilities`);
+    if (response.ok) {
+      const body = (await response.json()) as {
+        qrCapabilities: TableQRCapability[];
+      };
+      setCapabilities(body.qrCapabilities);
+    }
+  }
+
+  async function exportCode(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    setMessage(null);
+    try {
+      const body: ExportQRRequest = {
+        label,
+        expiresAt: expiresAt ? new Date(expiresAt).toISOString() : "",
+      };
+      const response = await fetch(
+        `/api/owner/tables/${table.id}/qr-capabilities`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
+      );
+      if (!response.ok) {
+        setMessage(await readErrorMessage(response));
+        return;
+      }
+      const created = (await response.json()) as QRExport;
+      setLatestExport(created);
+      setLabel("");
+      setExpiresAt("");
+      setMessage("QR code generated.");
+      await refreshList();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function rotate(capability: TableQRCapability) {
+    if (
+      !window.confirm(
+        `Rotate the QR code for "${capability.label || table.label}"? The current code will stop working immediately.`,
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    setMessage(null);
+    try {
+      const response = await fetch(
+        `/api/owner/tables/${table.id}/qr-capabilities/${capability.id}/rotate`,
+        { method: "POST" },
+      );
+      if (!response.ok) {
+        setMessage(await readErrorMessage(response));
+        return;
+      }
+      const rotated = (await response.json()) as QRExport;
+      setLatestExport(rotated);
+      setMessage("QR code rotated.");
+      await refreshList();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function revoke(capability: TableQRCapability) {
+    if (
+      !window.confirm(
+        `Revoke the QR code "${capability.label || capability.lookupPrefix}"? It will stop working immediately.`,
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    setMessage(null);
+    try {
+      const response = await fetch(
+        `/api/owner/tables/${table.id}/qr-capabilities/${capability.id}/revoke`,
+        { method: "POST" },
+      );
+      if (!response.ok) {
+        setMessage(await readErrorMessage(response));
+        return;
+      }
+      setMessage("QR code revoked.");
+      await refreshList();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="stack">
+      <h3>Table QR Codes</h3>
+      <form className="form" onSubmit={exportCode}>
+        <label>
+          Label
+          <input
+            onChange={(event) => setLabel(event.target.value)}
+            placeholder="Front door…"
+            value={label}
+          />
+        </label>
+        <label>
+          Expires at
+          <input
+            onChange={(event) => setExpiresAt(event.target.value)}
+            type="datetime-local"
+            value={expiresAt}
+          />
+        </label>
+        <button disabled={busy} type="submit">
+          {busy ? "Working…" : "Generate QR"}
+        </button>
+      </form>
+
+      {latestExport ? (
+        <article className="panel qr-reveal">
+          <QRCodeSVG size={200} value={latestExport.publicUrl} />
+          <label>
+            Token
+            <input readOnly value={latestExport.token} />
+          </label>
+          <div className="member-actions">
+            <button
+              onClick={() =>
+                void navigator.clipboard.writeText(latestExport.token)
+              }
+              type="button"
+            >
+              Copy token
+            </button>
+            <button onClick={() => window.print()} type="button">
+              Print
+            </button>
+          </div>
+          <p className="empty-state">
+            This code won&rsquo;t be shown again — copy or print it now.
+          </p>
+        </article>
+      ) : null}
+
+      {capabilities === null ? (
+        <p className="empty-state">Loading QR codes…</p>
+      ) : capabilities.length > 0 ? (
+        capabilities.map((capability) => {
+          const expired =
+            !capability.revokedAt &&
+            Boolean(capability.expiresAt) &&
+            new Date(capability.expiresAt as string) < new Date();
+          const revoked = Boolean(capability.revokedAt) || expired;
+          return (
+            <article className="panel" key={capability.id}>
+              <StatusBadge
+                label={expired && !capability.revokedAt ? "Expired" : undefined}
+                variant={revoked ? "revoked" : "active"}
+              />
+              <dl className="compact-list">
+                <dt>Label</dt>
+                <dd>{capability.label || "—"}</dd>
+                <dt>Lookup prefix</dt>
+                <dd>{capability.lookupPrefix}</dd>
+                <dt>Issued</dt>
+                <dd>{formatDateTime(capability.issuedAt)}</dd>
+                {capability.expiresAt ? (
+                  <>
+                    <dt>Expires</dt>
+                    <dd>{formatDateTime(capability.expiresAt)}</dd>
+                  </>
+                ) : null}
+                {capability.lastUsedAt ? (
+                  <>
+                    <dt>Last used</dt>
+                    <dd>{formatDateTime(capability.lastUsedAt)}</dd>
+                  </>
+                ) : null}
+                {capability.revokedAt ? (
+                  <>
+                    <dt>Revoked</dt>
+                    <dd>{formatDateTime(capability.revokedAt)}</dd>
+                  </>
+                ) : null}
+              </dl>
+              <div className="member-actions">
+                <button
+                  disabled={busy || revoked}
+                  onClick={() => void rotate(capability)}
+                  type="button"
+                >
+                  Rotate
+                </button>
+                <button
+                  className="danger"
+                  disabled={busy || revoked}
+                  onClick={() => void revoke(capability)}
+                  type="button"
+                >
+                  Revoke
+                </button>
+              </div>
+            </article>
+          );
+        })
+      ) : (
+        <p className="empty-state">No QR codes generated for this table yet.</p>
+      )}
+
+      {message ? (
+        <p aria-live="polite" className="toast" role="status">
+          {message}
+        </p>
+      ) : null}
+
+      {mounted && latestExport
+        ? createPortal(
+            <div className="qr-print-only">
+              <h2>{table.label}</h2>
+              <QRCodeSVG size={320} value={latestExport.publicUrl} />
+              <p>{latestExport.publicUrl}</p>
+            </div>,
+            document.body,
+          )
+        : null}
+    </div>
+  );
+}
+
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
 }
 
 function ZoneForm({

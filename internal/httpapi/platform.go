@@ -20,6 +20,8 @@ const (
 	platformActionTenantSearch          = "platform.tenant_search"
 	platformActionTenantRead            = "platform.tenant_read"
 	platformActionTenantDiagnosticsRead = "platform.tenant_diagnostics_read"
+	platformActionTenantSuspend         = "platform.tenant_suspend"
+	platformActionTenantReactivate      = "platform.tenant_reactivate"
 )
 
 type platformTenantSummaryDTO struct {
@@ -108,7 +110,7 @@ func (api *API) searchPlatformTenants(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var tenants []platformTenantSummaryDTO
-	err := api.inAuthorizedPlatformTx(r.Context(), req, func(q *db.Queries) error {
+	err := api.inAuthorizedPlatformTx(r.Context(), req, identity.PermissionPlatformAdmin, func(q *db.Queries) error {
 		rows, err := q.SearchPlatformTenants(r.Context(), db.SearchPlatformTenantsParams{
 			Search:      search,
 			ResultLimit: limit,
@@ -144,33 +146,11 @@ func (api *API) getPlatformTenant(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var detail platformTenantDetailDTO
-	err := api.inAuthorizedPlatformTx(r.Context(), req, func(q *db.Queries) error {
-		overview, err := q.GetPlatformTenantOverview(r.Context(), tenantID)
+	err := api.inAuthorizedPlatformTx(r.Context(), req, identity.PermissionPlatformAdmin, func(q *db.Queries) error {
+		var err error
+		detail, err = loadPlatformTenantDetail(r.Context(), q, tenantID)
 		if err != nil {
-			return fmt.Errorf("getting platform tenant overview: %w", err)
-		}
-		locations, err := q.ListPlatformTenantLocations(r.Context(), tenantID)
-		if err != nil {
-			return fmt.Errorf("listing platform tenant locations: %w", err)
-		}
-		roleCounts, err := q.ListPlatformTenantMembershipRoleCounts(r.Context(), tenantID)
-		if err != nil {
-			return fmt.Errorf("listing platform tenant role counts: %w", err)
-		}
-		deviceCounts, err := q.ListPlatformTenantDeviceCounts(r.Context(), tenantID)
-		if err != nil {
-			return fmt.Errorf("listing platform tenant device counts: %w", err)
-		}
-		diagnostics, err := q.GetPlatformTenantDiagnostics(r.Context(), tenantID)
-		if err != nil {
-			return fmt.Errorf("getting platform tenant diagnostics: %w", err)
-		}
-		detail = platformTenantDetailDTO{
-			Tenant:       platformTenantOverviewFromDB(overview),
-			Locations:    platformLocationsFromDB(locations),
-			RoleCounts:   platformRoleCountsFromDB(roleCounts),
-			DeviceCounts: platformDeviceCountsFromDB(deviceCounts),
-			Diagnostics:  platformDiagnosticsFromDB(diagnostics),
+			return err
 		}
 		return api.recordPlatformAudit(r.Context(), q, req, tenantID, platformActionTenantRead, "organisation", tenantID.String(), nil)
 	})
@@ -192,7 +172,7 @@ func (api *API) getPlatformTenantDiagnostics(w http.ResponseWriter, r *http.Requ
 	}
 
 	var diagnostics platformDiagnosticsDTO
-	err := api.inAuthorizedPlatformTx(r.Context(), req, func(q *db.Queries) error {
+	err := api.inAuthorizedPlatformTx(r.Context(), req, identity.PermissionPlatformAdmin, func(q *db.Queries) error {
 		if _, err := q.GetPlatformTenantOverview(r.Context(), tenantID); err != nil {
 			return fmt.Errorf("getting platform tenant overview: %w", err)
 		}
@@ -208,6 +188,100 @@ func (api *API) getPlatformTenantDiagnostics(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"diagnostics": diagnostics})
+}
+
+func loadPlatformTenantDetail(ctx context.Context, q *db.Queries, tenantID uuid.UUID) (platformTenantDetailDTO, error) {
+	overview, err := q.GetPlatformTenantOverview(ctx, tenantID)
+	if err != nil {
+		return platformTenantDetailDTO{}, fmt.Errorf("getting platform tenant overview: %w", err)
+	}
+	locations, err := q.ListPlatformTenantLocations(ctx, tenantID)
+	if err != nil {
+		return platformTenantDetailDTO{}, fmt.Errorf("listing platform tenant locations: %w", err)
+	}
+	roleCounts, err := q.ListPlatformTenantMembershipRoleCounts(ctx, tenantID)
+	if err != nil {
+		return platformTenantDetailDTO{}, fmt.Errorf("listing platform tenant role counts: %w", err)
+	}
+	deviceCounts, err := q.ListPlatformTenantDeviceCounts(ctx, tenantID)
+	if err != nil {
+		return platformTenantDetailDTO{}, fmt.Errorf("listing platform tenant device counts: %w", err)
+	}
+	diagnostics, err := q.GetPlatformTenantDiagnostics(ctx, tenantID)
+	if err != nil {
+		return platformTenantDetailDTO{}, fmt.Errorf("getting platform tenant diagnostics: %w", err)
+	}
+	return platformTenantDetailDTO{
+		Tenant:       platformTenantOverviewFromDB(overview),
+		Locations:    platformLocationsFromDB(locations),
+		RoleCounts:   platformRoleCountsFromDB(roleCounts),
+		DeviceCounts: platformDeviceCountsFromDB(deviceCounts),
+		Diagnostics:  platformDiagnosticsFromDB(diagnostics),
+	}, nil
+}
+
+type platformTenantStatusChangeRequest struct {
+	Reason string `json:"reason"`
+}
+
+func decodePlatformStatusChangeReason(w http.ResponseWriter, r *http.Request) (string, bool) {
+	var body platformTenantStatusChangeRequest
+	if !decodeJSONBody(w, r, &body) {
+		return "", false
+	}
+	reason := strings.TrimSpace(body.Reason)
+	if reason == "" {
+		writeError(w, http.StatusBadRequest, "validation_failed", "reason is required", nil)
+		return "", false
+	}
+	return reason, true
+}
+
+func (api *API) suspendPlatformTenant(w http.ResponseWriter, r *http.Request) {
+	api.changePlatformTenantStatus(w, r, "disabled", platformActionTenantSuspend)
+}
+
+func (api *API) reactivatePlatformTenant(w http.ResponseWriter, r *http.Request) {
+	api.changePlatformTenantStatus(w, r, "active", platformActionTenantReactivate)
+}
+
+func (api *API) changePlatformTenantStatus(w http.ResponseWriter, r *http.Request, status string, action string) {
+	req, ok := api.platformRequestContext(w, r)
+	if !ok {
+		return
+	}
+	tenantID, ok := pathUUID(w, r, "id")
+	if !ok {
+		return
+	}
+	reason, ok := decodePlatformStatusChangeReason(w, r)
+	if !ok {
+		return
+	}
+
+	var detail platformTenantDetailDTO
+	err := api.inAuthorizedPlatformTx(r.Context(), req, identity.PermissionPlatformAdminWrite, func(q *db.Queries) error {
+		if _, err := q.SetOrganisationStatus(r.Context(), db.SetOrganisationStatusParams{
+			ID:     tenantID,
+			Status: status,
+		}); err != nil {
+			return fmt.Errorf("setting organisation status: %w", err)
+		}
+		var err error
+		detail, err = loadPlatformTenantDetail(r.Context(), q, tenantID)
+		if err != nil {
+			return err
+		}
+		return api.recordPlatformAudit(r.Context(), q, req, tenantID, action, "organisation", tenantID.String(), map[string]any{
+			"reason": reason,
+			"status": status,
+		})
+	})
+	if err != nil {
+		api.writePlatformError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, detail)
 }
 
 func (api *API) platformRequestContext(w http.ResponseWriter, r *http.Request) (platformRequestContext, bool) {
@@ -236,7 +310,7 @@ func (api *API) platformRequestContext(w http.ResponseWriter, r *http.Request) (
 	return platformRequestContext{ActorRef: actorRefForSession(session)}, true
 }
 
-func (api *API) inAuthorizedPlatformTx(ctx context.Context, req platformRequestContext, fn func(*db.Queries) error) error {
+func (api *API) inAuthorizedPlatformTx(ctx context.Context, req platformRequestContext, permission string, fn func(*db.Queries) error) error {
 	if strings.TrimSpace(req.ActorRef) == "" {
 		return identity.ErrUnauthorized
 	}
@@ -250,7 +324,7 @@ func (api *API) inAuthorizedPlatformTx(ctx context.Context, req platformRequestC
 	}
 	allowed, err := q.ActorHasPlatformPermission(ctx, db.ActorHasPlatformPermissionParams{
 		MemberRef:      req.ActorRef,
-		PermissionName: identity.PermissionPlatformAdmin,
+		PermissionName: permission,
 	})
 	if err != nil {
 		return rollback(tx, ctx, fmt.Errorf("checking platform permission: %w", err))

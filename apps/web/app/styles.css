@@ -632,6 +632,18 @@ html {
   margin-bottom: 4px;
 }
 
+.platform-title-actions {
+  align-items: end;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.platform-tenant-actions {
+  display: flex;
+  gap: 8px;
+}
+
 .platform-table-row {
   align-items: center;
   border-bottom: 1px solid var(--seatd-line);
@@ -676,6 +688,11 @@ html {
 .status-neutral {
   background: color-mix(in srgb, var(--seatd-ink) 8%, transparent);
   color: var(--seatd-muted);
+}
+
+.status-failed {
+  background: color-mix(in srgb, var(--seatd-danger) 16%, transparent);
+  color: color-mix(in srgb, var(--seatd-danger) 88%, var(--seatd-ink));
 }
 
 .integrations-layout {
@@ -1136,6 +1153,46 @@ html {
 .toast.error {
   background: color-mix(in srgb, var(--seatd-danger) 14%, var(--seatd-white));
   border-color: color-mix(in srgb, var(--seatd-danger) 38%, transparent);
+}
+
+.confirm-dialog {
+  background: var(--seatd-bone);
+  border: 1px solid var(--seatd-line);
+  border-radius: var(--seatd-radius-panel);
+  color: var(--seatd-ink);
+  max-width: 420px;
+  padding: 24px;
+  width: calc(100% - 32px);
+}
+
+.confirm-dialog::backdrop {
+  background: color-mix(in srgb, var(--seatd-ink) 45%, transparent);
+}
+
+.confirm-dialog form {
+  display: grid;
+  gap: 16px;
+}
+
+.confirm-dialog h2 {
+  margin: 0;
+}
+
+.confirm-dialog p {
+  color: var(--seatd-muted);
+  margin: 0;
+}
+
+.confirm-dialog label {
+  display: grid;
+  font-weight: 650;
+  gap: 6px;
+}
+
+.confirm-dialog-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
 }
 
 .device-list {
@@ -2388,5 +2445,30 @@ html[data-reveal-ready="true"] [data-reveal][data-visible="true"],
   .demo-form,
   .fit-board {
     padding: 22px;
+  }
+}
+
+.qr-reveal {
+  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.qr-print-only {
+  display: none;
+}
+
+@media print {
+  body > :not(.qr-print-only) {
+    display: none !important;
+  }
+
+  .qr-print-only {
+    align-items: center;
+    display: flex !important;
+    flex-direction: column;
+    gap: 12px;
+    padding: 24px;
   }
 }

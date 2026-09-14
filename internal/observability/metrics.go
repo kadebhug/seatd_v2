@@ -34,6 +34,7 @@ type ServiceMetrics struct {
 	webhooks         *prometheus.CounterVec
 	reconciliations  *prometheus.CounterVec
 	reconcileDiscrep *prometheus.GaugeVec
+	analyticsRebuild *prometheus.CounterVec
 	outbox           *OutboxMetrics
 }
 
@@ -95,6 +96,11 @@ func NewServiceMetrics(cfg app.Config, logger *slog.Logger) *ServiceMetrics {
 			Name:      "integration_reconciliation_discrepancies",
 			Help:      "Discrepancies found in the most recent observed reconciliation run.",
 		}, []string{}),
+		analyticsRebuild: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: "seatd",
+			Name:      "analytics_rebuilds_total",
+			Help:      "Manual analytics rebuild attempts by outcome.",
+		}, []string{"outcome"}),
 	}
 
 	registerer.MustRegister(
@@ -108,6 +114,7 @@ func NewServiceMetrics(cfg app.Config, logger *slog.Logger) *ServiceMetrics {
 		m.webhooks,
 		m.reconciliations,
 		m.reconcileDiscrep,
+		m.analyticsRebuild,
 	)
 	return m
 }
@@ -207,6 +214,21 @@ SELECT count(*)
 FROM integration_discrepancies
 WHERE resolution_state <> 'resolved'
 `),
+		dbGauge("analytics_rebuild_runs_failed_total", "Analytics rebuild runs that failed in the last 24 hours.", m, pool, `
+SELECT count(*)
+FROM analytics_rebuild_runs
+WHERE status = 'failed' AND started_at > now() - interval '24 hours'
+`),
+		dbFloatGauge("analytics_projector_lag_seconds", "Seconds of lag between the latest applied event and now for the analytics projector.", m, pool, `
+SELECT lag_seconds FROM analytics_projector_checkpoints WHERE projector_name = 'analytics-projector'
+`),
+		dbFloatGauge("analytics_rebuild_stuck_seconds", "Seconds since the current analytics rebuild started, if one is running.", m, pool, `
+SELECT COALESCE((
+    SELECT EXTRACT(EPOCH FROM (now() - rebuild_started_at))
+    FROM analytics_projector_checkpoints
+    WHERE projector_name = 'analytics-projector' AND rebuild_status = 'running'
+), 0)
+`),
 	)
 }
 
@@ -290,6 +312,12 @@ func (m *ServiceMetrics) ObserveIntegrationReconciliation(outcome string, _ stri
 	}
 	m.reconciliations.WithLabelValues(cleanLabel(outcome)).Inc()
 	m.reconcileDiscrep.WithLabelValues().Set(float64(discrepancies))
+}
+
+func (m *ServiceMetrics) ObserveAnalyticsRebuild(outcome string) {
+	if m != nil {
+		m.analyticsRebuild.WithLabelValues(cleanLabel(outcome)).Inc()
+	}
 }
 
 func (m *ServiceMetrics) NewOutboxMetrics() *OutboxMetrics {
@@ -460,6 +488,38 @@ func dbGauge(name, help string, m *ServiceMetrics, pool *pgxpool.Pool, sql strin
 			return 0
 		}
 		return float64(count)
+	})
+}
+
+func dbFloatGauge(name, help string, m *ServiceMetrics, pool *pgxpool.Pool, sql string) prometheus.Collector {
+	return prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+		Namespace: "seatd",
+		Name:      name,
+		Help:      help,
+	}, func() float64 {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		tx, err := pool.Begin(ctx)
+		if err != nil {
+			m.logger.Warn("collecting database metric failed", "metric", name, "error", err)
+			return 0
+		}
+		if _, err := tx.Exec(ctx, "SELECT set_config('seatd.platform_admin', 'true', true)"); err != nil {
+			_ = tx.Rollback(ctx)
+			m.logger.Warn("collecting database metric failed", "metric", name, "error", err)
+			return 0
+		}
+		var value float64
+		if err := tx.QueryRow(ctx, sql).Scan(&value); err != nil {
+			_ = tx.Rollback(ctx)
+			m.logger.Warn("collecting database metric failed", "metric", name, "error", err)
+			return 0
+		}
+		if err := tx.Commit(ctx); err != nil {
+			m.logger.Warn("collecting database metric failed", "metric", name, "error", err)
+			return 0
+		}
+		return value
 	})
 }
 

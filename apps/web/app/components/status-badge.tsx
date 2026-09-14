@@ -20,7 +20,11 @@ type StatusVariant =
   | "active"
   | "disabled"
   | "processed"
-  | "pending";
+  | "pending"
+  | "running"
+  | "completed"
+  | "failed"
+  | "stale";
 
 const variantConfig: Record<
   StatusVariant,
@@ -75,6 +79,26 @@ const variantConfig: Record<
     label: "Pending",
     className: "status-attention",
     Icon: ClockIcon,
+  },
+  running: {
+    label: "Running",
+    className: "status-attention",
+    Icon: ClockIcon,
+  },
+  completed: {
+    label: "Completed",
+    className: "status-available",
+    Icon: CheckCircleIcon,
+  },
+  failed: {
+    label: "Failed",
+    className: "status-failed",
+    Icon: WarningCircleIcon,
+  },
+  stale: {
+    label: "Stale",
+    className: "status-attention",
+    Icon: WarningCircleIcon,
   },
 };
 

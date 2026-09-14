@@ -6,6 +6,8 @@ export const versionEndpoint = "/version";
 export const platformTenantsEndpoint = "/v1/platform/tenants";
 export const platformTenantEndpoint = "/v1/platform/tenants/{id}";
 export const platformTenantDiagnosticsEndpoint = "/v1/platform/tenants/{id}/diagnostics";
+export const platformTenantSuspendEndpoint = "/v1/platform/tenants/{id}/suspend";
+export const platformTenantReactivateEndpoint = "/v1/platform/tenants/{id}/reactivate";
 export const organisationEndpoint = "/v1/organisations/{id}";
 export const ownerSnapshotEndpoint = "/v1/owner/snapshot";
 export const locationEndpoint = "/v1/locations/{id}";
@@ -311,6 +313,14 @@ export interface PlatformTenantDetail {
 
 export interface PlatformDiagnosticsResponse {
   diagnostics: PlatformDiagnostics;
+}
+
+export interface SuspendTenantRequest {
+  reason: string;
+}
+
+export interface ReactivateTenantRequest {
+  reason: string;
 }
 
 export interface QRExport extends TableQRCapability {
@@ -668,6 +678,24 @@ export interface AnalyticsSummary {
   currentServicePeriod?: AnalyticsWindowMetric;
   checkpoint?: AnalyticsCheckpoint;
   dataQuality: AnalyticsDataQuality;
+  lastRebuildRun?: AnalyticsRebuildRun;
+}
+
+export interface AnalyticsRebuildRun {
+  id: string;
+  locationId: string;
+  requestedBy: string;
+  rangeFrom: string;
+  rangeTo: string;
+  startedAt: string;
+  completedAt?: string;
+  status: string;
+  daysProcessed: number;
+  lastError?: string;
+}
+
+export interface AnalyticsRebuildResponse {
+  rebuildRun: AnalyticsRebuildRun;
 }
 
 export interface AnalyticsTimePoint {

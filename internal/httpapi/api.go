@@ -93,6 +93,8 @@ func NewHandler(cfg app.Config, logger *slog.Logger, pool *pgxpool.Pool, metrics
 	mux.HandleFunc("GET /v1/platform/tenants", api.searchPlatformTenants)
 	mux.HandleFunc("GET /v1/platform/tenants/{id}", api.getPlatformTenant)
 	mux.HandleFunc("GET /v1/platform/tenants/{id}/diagnostics", api.getPlatformTenantDiagnostics)
+	mux.HandleFunc("POST /v1/platform/tenants/{id}/suspend", api.suspendPlatformTenant)
+	mux.HandleFunc("POST /v1/platform/tenants/{id}/reactivate", api.reactivatePlatformTenant)
 	mux.HandleFunc("GET /v1/organisations/{id}", api.getOrganisation)
 	mux.HandleFunc("PUT /v1/organisations/{id}", api.updateOrganisation)
 	mux.HandleFunc("GET /v1/owner/snapshot", api.getOwnerSnapshot)
@@ -367,6 +369,20 @@ type analyticsSummaryDTO struct {
 	CurrentServicePeriod *analyticsWindowMetricDTO `json:"currentServicePeriod,omitempty"`
 	Checkpoint           *analyticsCheckpointDTO   `json:"checkpoint,omitempty"`
 	DataQuality          analyticsDataQualityDTO   `json:"dataQuality"`
+	LastRebuildRun       *analyticsRebuildRunDTO   `json:"lastRebuildRun,omitempty"`
+}
+
+type analyticsRebuildRunDTO struct {
+	ID            string  `json:"id"`
+	LocationID    string  `json:"locationId"`
+	RequestedBy   string  `json:"requestedBy"`
+	RangeFrom     string  `json:"rangeFrom"`
+	RangeTo       string  `json:"rangeTo"`
+	StartedAt     string  `json:"startedAt"`
+	CompletedAt   *string `json:"completedAt,omitempty"`
+	Status        string  `json:"status"`
+	DaysProcessed int32   `json:"daysProcessed"`
+	LastError     *string `json:"lastError,omitempty"`
 }
 
 type analyticsCheckpointDTO struct {
@@ -1268,17 +1284,23 @@ func (api *API) rebuildAnalytics(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "validation_failed", "to must be YYYY-MM-DD", nil)
 		return
 	}
-	err = api.analytics.Rebuild(r.Context(), analytics.RebuildParams{
+	run, err := api.analytics.Rebuild(r.Context(), analytics.RebuildParams{
 		TenantActor: analyticsActor(ctx),
 		LocationID:  locationID,
 		From:        from,
 		To:          to,
 	})
 	if err != nil {
+		if api.metrics != nil {
+			api.metrics.ObserveAnalyticsRebuild("failed")
+		}
 		api.writeAnalyticsError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusAccepted, map[string]any{"status": "accepted"})
+	if api.metrics != nil {
+		api.metrics.ObserveAnalyticsRebuild(run.Status)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"rebuildRun": analyticsRebuildRunFromDomain(run)})
 }
 
 func (api *API) listServicePeriods(w http.ResponseWriter, r *http.Request) {
@@ -2783,6 +2805,11 @@ func analyticsSummaryFromDomain(summary analytics.Summary) analyticsSummaryDTO {
 		dto := analyticsCheckpointFromDB(*summary.Checkpoint)
 		checkpoint = &dto
 	}
+	var lastRebuildRun *analyticsRebuildRunDTO
+	if summary.LastRebuildRun != nil {
+		dto := analyticsRebuildRunFromDomain(*summary.LastRebuildRun)
+		lastRebuildRun = &dto
+	}
 	return analyticsSummaryDTO{
 		Location:             locationFromDB(summary.Location),
 		Date:                 summary.Date.Format("2006-01-02"),
@@ -2790,6 +2817,27 @@ func analyticsSummaryFromDomain(summary analytics.Summary) analyticsSummaryDTO {
 		CurrentServicePeriod: current,
 		Checkpoint:           checkpoint,
 		DataQuality:          analyticsDataQualityFromDomain(summary.DataQuality),
+		LastRebuildRun:       lastRebuildRun,
+	}
+}
+
+func analyticsRebuildRunFromDomain(run analytics.RebuildRun) analyticsRebuildRunDTO {
+	var completedAt *string
+	if run.CompletedAt != nil {
+		formatted := run.CompletedAt.UTC().Format(time.RFC3339Nano)
+		completedAt = &formatted
+	}
+	return analyticsRebuildRunDTO{
+		ID:            run.ID.String(),
+		LocationID:    run.LocationID.String(),
+		RequestedBy:   run.RequestedBy,
+		RangeFrom:     run.RangeFrom.Format("2006-01-02"),
+		RangeTo:       run.RangeTo.Format("2006-01-02"),
+		StartedAt:     run.StartedAt.UTC().Format(time.RFC3339Nano),
+		CompletedAt:   completedAt,
+		Status:        run.Status,
+		DaysProcessed: run.DaysProcessed,
+		LastError:     run.LastError,
 	}
 }
 

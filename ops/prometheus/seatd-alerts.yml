@@ -135,3 +135,30 @@ groups:
         annotations:
           summary: "Seatd integration reconciliation found discrepancies"
           description: "Seatd and external integration state disagree and need review."
+
+  - name: seatd-analytics
+    rules:
+      - alert: SeatdAnalyticsProjectorLagHigh
+        expr: seatd_analytics_projector_lag_seconds > 900
+        for: 15m
+        labels:
+          severity: ticket
+        annotations:
+          summary: "Seatd analytics projector is falling behind"
+          description: "The analytics projector has not applied an event in over 15 minutes; dashboards may show stale data."
+      - alert: SeatdAnalyticsRebuildStuck
+        expr: seatd_analytics_rebuild_stuck_seconds > 1800
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: "Seatd analytics rebuild appears stuck"
+          description: "A manual analytics rebuild has been running for over 30 minutes without completing."
+      - alert: SeatdAnalyticsRebuildFailures
+        expr: increase(seatd_analytics_rebuilds_total{outcome="failed"}[1h]) > 2 or seatd_analytics_rebuild_runs_failed_total > 2
+        for: 5m
+        labels:
+          severity: ticket
+        annotations:
+          summary: "Seatd analytics rebuilds are failing repeatedly"
+          description: "More than 2 analytics rebuild attempts failed in the last hour or day; investigate the projection pipeline."

@@ -1,0 +1,5 @@
+.env*
+!.env.example
+!.env.deploy.example
+out/
+deploy/*.tar.gz

@@ -136,6 +136,48 @@
         }
       }
     },
+    "/v1/platform/tenants/{id}/suspend": {
+      "post": {
+        "operationId": "suspendPlatformTenant",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IDPath"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/SuspendTenantRequest"
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/PlatformTenantDetailResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/platform/tenants/{id}/reactivate": {
+      "post": {
+        "operationId": "reactivatePlatformTenant",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IDPath"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/ReactivateTenantRequest"
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/PlatformTenantDetailResponse"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
     "/v1/organisations/{id}": {
       "get": {
         "operationId": "getOrganisation",
@@ -1758,8 +1800,15 @@
           }
         },
         "responses": {
-          "202": {
-            "description": "Analytics rebuild accepted"
+          "200": {
+            "description": "Analytics rebuild completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsRebuildResponse"
+                }
+              }
+            }
           },
           "default": {
             "$ref": "#/components/responses/ErrorResponse"
@@ -2512,6 +2561,26 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/UpdateOrganisationRequest"
+            }
+          }
+        }
+      },
+      "SuspendTenantRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/SuspendTenantRequest"
+            }
+          }
+        }
+      },
+      "ReactivateTenantRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ReactivateTenantRequest"
             }
           }
         }
@@ -3712,6 +3781,30 @@
               "active",
               "disabled"
             ]
+          }
+        }
+      },
+      "SuspendTenantRequest": {
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "ReactivateTenantRequest": {
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1
           }
         }
       },
@@ -5200,6 +5293,9 @@
           },
           "dataQuality": {
             "$ref": "#/components/schemas/AnalyticsDataQuality"
+          },
+          "lastRebuildRun": {
+            "$ref": "#/components/schemas/AnalyticsRebuildRun"
           }
         }
       },
@@ -5397,6 +5493,68 @@
           "to": {
             "type": "string",
             "format": "date"
+          }
+        }
+      },
+      "AnalyticsRebuildRun": {
+        "type": "object",
+        "required": [
+          "id",
+          "locationId",
+          "requestedBy",
+          "rangeFrom",
+          "rangeTo",
+          "startedAt",
+          "status",
+          "daysProcessed"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "requestedBy": {
+            "type": "string"
+          },
+          "rangeFrom": {
+            "type": "string",
+            "format": "date"
+          },
+          "rangeTo": {
+            "type": "string",
+            "format": "date"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string"
+          },
+          "daysProcessed": {
+            "type": "integer"
+          },
+          "lastError": {
+            "type": "string"
+          }
+        }
+      },
+      "AnalyticsRebuildResponse": {
+        "type": "object",
+        "required": [
+          "rebuildRun"
+        ],
+        "properties": {
+          "rebuildRun": {
+            "$ref": "#/components/schemas/AnalyticsRebuildRun"
           }
         }
       },

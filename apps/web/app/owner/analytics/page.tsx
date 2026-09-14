@@ -6,6 +6,7 @@ import type {
 import type { CSSProperties } from "react";
 import { getSession } from "../../../lib/session";
 import { seatdFetch } from "../../../lib/seatd-api";
+import { RebuildPanel } from "./rebuild-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -138,6 +139,16 @@ export default async function OwnerAnalyticsPage() {
             <dd>{seconds(summary.dataQuality.projectorLagSeconds)}</dd>
           </dl>
         </article>
+      </section>
+
+      <section>
+        <RebuildPanel
+          initialCheckpoint={summary.checkpoint}
+          initialLastRun={summary.lastRebuildRun}
+          locationId={session.locationId}
+          from={from}
+          to={to}
+        />
       </section>
     </main>
   );

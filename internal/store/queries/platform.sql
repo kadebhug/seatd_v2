@@ -192,3 +192,10 @@ SELECT
     checkpoint.updated_at AS analytics_checkpoint_updated_at
 FROM location_counts, device_counts, integration_counts, audit_counts
 LEFT JOIN checkpoint ON true;
+
+-- name: SetOrganisationStatus :one
+UPDATE organisations
+SET status = $2,
+    updated_at = now()
+WHERE id = $1
+RETURNING id, slug, name, status, legacy_restaurant_id, created_at, updated_at;

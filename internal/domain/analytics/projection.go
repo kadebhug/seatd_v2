@@ -2,11 +2,13 @@ package analytics
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/kadebhug/seatd_v2/internal/domain/events"
@@ -59,7 +61,7 @@ func (p *Projector) Handle(ctx context.Context, event events.Envelope) error {
 		return rollback(tx, ctx, fmt.Errorf("loading location timezone: %w", err))
 	}
 	start, end := localDateWindow(event.OccurredAt, tz)
-	if err := rebuildRange(ctx, tx, q, event.OrganisationID, event.LocationID, start, end); err != nil {
+	if _, err := rebuildRange(ctx, tx, q, event.OrganisationID, event.LocationID, start, end); err != nil {
 		observability.RecordSpanError(span, err)
 		return rollback(tx, ctx, err)
 	}
@@ -82,7 +84,7 @@ func rebuildRange(
 	locationID uuid.UUID,
 	from time.Time,
 	to time.Time,
-) error {
+) (int32, error) {
 	ctx, span := observability.StartSpan(ctx, "analytics.rebuild_range",
 		attribute.String("seatd.organisation_id", organisationID.String()),
 		attribute.String("seatd.location_id", locationID.String()),
@@ -93,12 +95,12 @@ func rebuildRange(
 	location, err := q.GetLocation(ctx, db.GetLocationParams{ID: locationID, OrganisationID: organisationID})
 	if err != nil {
 		observability.RecordSpanError(span, err)
-		return fmt.Errorf("getting rebuild location: %w", err)
+		return 0, fmt.Errorf("getting rebuild location: %w", err)
 	}
 	tz, err := time.LoadLocation(location.Timezone)
 	if err != nil {
 		observability.RecordSpanError(span, err)
-		return fmt.Errorf("loading rebuild timezone: %w", err)
+		return 0, fmt.Errorf("loading rebuild timezone: %w", err)
 	}
 	if _, err := tx.Exec(ctx, `
 INSERT INTO analytics_projector_checkpoints (projector_name, projector_version, rebuild_status, rebuild_started_at, updated_at)
@@ -110,19 +112,21 @@ SET projector_version = EXCLUDED.projector_version,
     updated_at = now()
 `, ProjectorName, ProjectorVersion); err != nil {
 		observability.RecordSpanError(span, err)
-		return fmt.Errorf("marking analytics rebuild running: %w", err)
+		return 0, fmt.Errorf("marking analytics rebuild running: %w", err)
 	}
 
+	var daysProcessed int32
 	for day := calendarDateInLocation(from, tz); day.Before(calendarDateInLocation(to, tz)); day = day.AddDate(0, 0, 1) {
 		dayStart, dayEnd := localCalendarDateWindow(day, tz)
 		if err := clearProjectionDay(ctx, tx, organisationID, locationID, day); err != nil {
 			observability.RecordSpanError(span, err)
-			return err
+			return daysProcessed, err
 		}
 		if err := projectDay(ctx, tx, q, organisationID, locationID, day, dayStart, dayEnd); err != nil {
 			observability.RecordSpanError(span, err)
-			return err
+			return daysProcessed, err
 		}
+		daysProcessed++
 	}
 
 	if _, err := tx.Exec(ctx, `
@@ -133,9 +137,9 @@ SET rebuild_status = 'idle',
 WHERE projector_name = $1
 `, ProjectorName); err != nil {
 		observability.RecordSpanError(span, err)
-		return fmt.Errorf("marking analytics rebuild complete: %w", err)
+		return daysProcessed, fmt.Errorf("marking analytics rebuild complete: %w", err)
 	}
-	return nil
+	return daysProcessed, nil
 }
 
 func clearProjectionDay(ctx context.Context, tx pgx.Tx, organisationID uuid.UUID, locationID uuid.UUID, day time.Time) error {
@@ -709,4 +713,82 @@ func optionalFloat(value *float64) float64 {
 		return 0
 	}
 	return *value
+}
+
+const rebuildRunColumns = `id, organisation_id, location_id, requested_by, range_from::timestamptz, range_to::timestamptz,
+       started_at, completed_at, status, days_processed, last_error`
+
+func scanRebuildRun(row pgx.Row) (RebuildRun, error) {
+	var run RebuildRun
+	var completedAt pgtype.Timestamptz
+	var lastError pgtype.Text
+	err := row.Scan(
+		&run.ID, &run.OrganisationID, &run.LocationID, &run.RequestedBy, &run.RangeFrom, &run.RangeTo,
+		&run.StartedAt, &completedAt, &run.Status, &run.DaysProcessed, &lastError,
+	)
+	if err != nil {
+		return RebuildRun{}, err
+	}
+	run.CompletedAt = pgTimePtr(completedAt)
+	run.LastError = pgTextPtr(lastError)
+	return run, nil
+}
+
+func createRebuildRun(ctx context.Context, tx pgx.Tx, actor TenantActor, from time.Time, to time.Time) (RebuildRun, error) {
+	run, err := scanRebuildRun(tx.QueryRow(ctx, `
+INSERT INTO analytics_rebuild_runs (organisation_id, location_id, requested_by, range_from, range_to)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING `+rebuildRunColumns, actor.OrganisationID, actor.LocationID, actor.ActorRef, pgDate(from), pgDate(to)))
+	if err != nil {
+		return RebuildRun{}, fmt.Errorf("creating analytics rebuild run: %w", err)
+	}
+	return run, nil
+}
+
+func finishRebuildRun(ctx context.Context, tx pgx.Tx, runID uuid.UUID, status string, daysProcessed int32, lastError string) (RebuildRun, error) {
+	lastErrorArg := pgtype.Text{String: lastError, Valid: lastError != ""}
+	run, err := scanRebuildRun(tx.QueryRow(ctx, `
+UPDATE analytics_rebuild_runs
+SET status = $2,
+    completed_at = now(),
+    days_processed = $3,
+    last_error = $4,
+    updated_at = now()
+WHERE id = $1
+RETURNING `+rebuildRunColumns, runID, status, daysProcessed, lastErrorArg))
+	if err != nil {
+		return RebuildRun{}, fmt.Errorf("finishing analytics rebuild run: %w", err)
+	}
+	return run, nil
+}
+
+func latestRebuildRun(ctx context.Context, tx pgx.Tx, organisationID uuid.UUID, locationID uuid.UUID) (*RebuildRun, error) {
+	run, err := scanRebuildRun(tx.QueryRow(ctx, `
+SELECT `+rebuildRunColumns+`
+FROM analytics_rebuild_runs
+WHERE organisation_id = $1 AND location_id = $2
+ORDER BY started_at DESC
+LIMIT 1
+`, organisationID, locationID))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("getting latest analytics rebuild run: %w", err)
+	}
+	return &run, nil
+}
+
+func pgTimePtr(value pgtype.Timestamptz) *time.Time {
+	if !value.Valid {
+		return nil
+	}
+	return &value.Time
+}
+
+func pgTextPtr(value pgtype.Text) *string {
+	if !value.Valid {
+		return nil
+	}
+	return &value.String
 }

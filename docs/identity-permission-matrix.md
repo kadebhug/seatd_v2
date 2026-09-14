@@ -2,7 +2,7 @@
 
 | Role | Scope | Permissions |
 | --- | --- | --- |
-| `platform_admin` | Platform | `platform.admin`, `audit.read` |
+| `platform_admin` | Platform | `platform.admin`, `platform.admin.write`, `audit.read` |
 | `support` | Platform | `audit.read` |
 | `organisation_owner` | Organisation | `organisation.manage`, `location.manage`, `layout.read`, `layout.write`, `operations.read`, `operations.write`, `device.manage`, `audit.read` |
 | `location_manager` | Location | `location.manage`, `layout.read`, `layout.write`, `operations.read`, `operations.write`, `device.manage` |

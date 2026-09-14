@@ -81,10 +81,76 @@ func TestPlatformAdminRoutesAuthorizeAndAudit(t *testing.T) {
 	})
 }
 
+func TestPlatformAdminSuspendReactivate(t *testing.T) {
+	ctx := context.Background()
+	pool := setupHTTPAPIDatabase(t, ctx)
+	fixture := createPlatformFixture(t, ctx, pool)
+	handler := NewHandler(app.Config{}, nil, pool)
+
+	suspendReq := func(actorRef, body string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPost, "/v1/platform/tenants/"+fixture.Organisation.ID.String()+"/suspend", strings.NewReader(body))
+		req.Header.Set(headerActorRef, actorRef)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		return rec
+	}
+	reactivateReq := func(actorRef, body string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPost, "/v1/platform/tenants/"+fixture.Organisation.ID.String()+"/reactivate", strings.NewReader(body))
+		req.Header.Set(headerActorRef, actorRef)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		return rec
+	}
+
+	t.Run("non admin forbidden", func(t *testing.T) {
+		rec := suspendReq(fixture.OwnerRef, `{"reason":"abuse"}`)
+		assertAPIError(t, rec, http.StatusForbidden, "forbidden")
+	})
+
+	t.Run("platform admin without write permission forbidden", func(t *testing.T) {
+		rec := suspendReq(fixture.ReadOnlyAdminRef, `{"reason":"abuse"}`)
+		assertAPIError(t, rec, http.StatusForbidden, "forbidden")
+	})
+
+	t.Run("missing reason rejected", func(t *testing.T) {
+		rec := suspendReq(fixture.PlatformRef, `{}`)
+		assertAPIError(t, rec, http.StatusBadRequest, "validation_failed")
+	})
+
+	t.Run("platform admin suspends and reactivates with audit", func(t *testing.T) {
+		suspendRec := suspendReq(fixture.PlatformRef, `{"reason":"suspicious billing activity"}`)
+		if suspendRec.Code != http.StatusOK {
+			t.Fatalf("suspend status = %d, want %d; body: %s", suspendRec.Code, http.StatusOK, suspendRec.Body.String())
+		}
+		var suspended platformTenantDetailDTO
+		if err := json.Unmarshal(suspendRec.Body.Bytes(), &suspended); err != nil {
+			t.Fatalf("decode suspend response: %v", err)
+		}
+		if suspended.Tenant.Status != "disabled" {
+			t.Fatalf("tenant status = %q, want %q", suspended.Tenant.Status, "disabled")
+		}
+		assertPlatformAuditCount(t, ctx, pool, fixture.Organisation.ID, fixture.PlatformRef, platformActionTenantSuspend, 1)
+
+		reactivateRec := reactivateReq(fixture.PlatformRef, `{"reason":"billing dispute resolved"}`)
+		if reactivateRec.Code != http.StatusOK {
+			t.Fatalf("reactivate status = %d, want %d; body: %s", reactivateRec.Code, http.StatusOK, reactivateRec.Body.String())
+		}
+		var reactivated platformTenantDetailDTO
+		if err := json.Unmarshal(reactivateRec.Body.Bytes(), &reactivated); err != nil {
+			t.Fatalf("decode reactivate response: %v", err)
+		}
+		if reactivated.Tenant.Status != "active" {
+			t.Fatalf("tenant status = %q, want %q", reactivated.Tenant.Status, "active")
+		}
+		assertPlatformAuditCount(t, ctx, pool, fixture.Organisation.ID, fixture.PlatformRef, platformActionTenantReactivate, 1)
+	})
+}
+
 type platformFixture struct {
-	Organisation db.Organisation
-	PlatformRef  string
-	OwnerRef     string
+	Organisation     db.Organisation
+	PlatformRef      string
+	OwnerRef         string
+	ReadOnlyAdminRef string
 }
 
 func createPlatformFixture(t *testing.T, ctx context.Context, pool *pgxpool.Pool) platformFixture {
@@ -93,6 +159,8 @@ func createPlatformFixture(t *testing.T, ctx context.Context, pool *pgxpool.Pool
 	suffix := strings.ReplaceAll(uuid.NewString(), "-", "")
 	platformRef := "user:platform-" + suffix
 	ownerRef := "user:owner-" + suffix
+	readOnlyAdminRef := "user:platform-ro-" + suffix
+	readOnlyAdminRole := "platform_admin_read_only_test_" + suffix
 
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -150,6 +218,25 @@ func createPlatformFixture(t *testing.T, ctx context.Context, pool *pgxpool.Pool
 	}); err != nil {
 		t.Fatalf("create owner membership: %v", err)
 	}
+	if _, err := tx.Exec(ctx, `
+INSERT INTO roles (name, scope, description)
+VALUES ($1, 'platform', 'test-only: platform.admin without platform.admin.write')
+`, readOnlyAdminRole); err != nil {
+		t.Fatalf("create read-only platform admin test role: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+INSERT INTO role_permissions (role_name, permission_name)
+VALUES ($1, $2)
+`, readOnlyAdminRole, identity.PermissionPlatformAdmin); err != nil {
+		t.Fatalf("grant read-only platform admin test role permission: %v", err)
+	}
+	if _, err := q.CreateOrganisationMembership(ctx, db.CreateOrganisationMembershipParams{
+		OrganisationID: org.ID,
+		MemberRef:      readOnlyAdminRef,
+		Role:           readOnlyAdminRole,
+	}); err != nil {
+		t.Fatalf("create read-only platform admin membership: %v", err)
+	}
 	if _, err := q.RegisterDevice(ctx, db.RegisterDeviceParams{
 		OrganisationID:           org.ID,
 		LocationID:               uuid.NullUUID{UUID: activeLocation.ID, Valid: true},
@@ -167,9 +254,10 @@ func createPlatformFixture(t *testing.T, ctx context.Context, pool *pgxpool.Pool
 		t.Fatalf("commit fixture transaction: %v", err)
 	}
 	return platformFixture{
-		Organisation: org,
-		PlatformRef:  platformRef,
-		OwnerRef:     ownerRef,
+		Organisation:     org,
+		PlatformRef:      platformRef,
+		OwnerRef:         ownerRef,
+		ReadOnlyAdminRef: readOnlyAdminRef,
 	}
 }
 
