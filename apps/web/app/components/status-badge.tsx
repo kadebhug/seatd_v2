@@ -117,7 +117,7 @@ export function StatusBadge({
   return (
     <span className={`status-badge ${config.className}`}>
       <Icon aria-hidden="true" size={14} weight="bold" />
-      {displayLabel}
+      <span>{displayLabel}</span>
     </span>
   );
 }

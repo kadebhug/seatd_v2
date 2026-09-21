@@ -8,9 +8,13 @@ import { OwnerActions } from "./owner-actions";
 
 type Props = {
   initialDetail: PlatformTenantDetail;
+  canWrite?: boolean;
 };
 
-export function TenantDetailPanel({ initialDetail }: Readonly<Props>) {
+export function TenantDetailPanel({
+  initialDetail,
+  canWrite = false,
+}: Readonly<Props>) {
   const [detail, setDetail] = useState(initialDetail);
 
   return (
@@ -26,7 +30,9 @@ export function TenantDetailPanel({ initialDetail }: Readonly<Props>) {
               label={detail.tenant.status}
               variant={detail.tenant.status}
             />
-            <TenantActions detail={detail} onUpdated={setDetail} />
+            {canWrite ? (
+              <TenantActions detail={detail} onUpdated={setDetail} />
+            ) : null}
           </div>
         </div>
         <div className="metric-strip">
@@ -134,7 +140,7 @@ export function TenantDetailPanel({ initialDetail }: Readonly<Props>) {
         </section>
       </section>
 
-      <OwnerActions tenantId={detail.tenant.id} />
+      <OwnerActions canWrite={canWrite} tenantId={detail.tenant.id} />
     </section>
   );
 }

@@ -132,22 +132,21 @@ export function NewTenantForm() {
           />
         </label>
       </section>
-      <section className="panel form">
-        <h2>Create</h2>
-        <button disabled={busy} type="submit">
-          {busy ? "Creating..." : "Create Tenant"}
-        </button>
-        {createdID ? (
-          <a className="button-link" href={`/platform?tenantId=${createdID}`}>
-            Open Tenant
-          </a>
-        ) : null}
+      <div className="form-actions grid-span">
         {error ? (
           <p aria-live="assertive" className="toast error" role="alert">
             {error}
           </p>
         ) : null}
-      </section>
+        {createdID ? (
+          <a className="button-link secondary" href={`/platform?tenantId=${createdID}`}>
+            Open Tenant
+          </a>
+        ) : null}
+        <button disabled={busy} type="submit">
+          {busy ? "Creating..." : "Create Tenant"}
+        </button>
+      </div>
     </form>
   );
 }

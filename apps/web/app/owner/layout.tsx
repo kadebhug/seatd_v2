@@ -17,6 +17,9 @@ export default async function OwnerLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   const session = await getSession();
+  if (canAccessPlatform(session) && !canAccessOwner(session)) {
+    redirect("/platform");
+  }
   if (!canAccessOwner(session) && session.organisationId) {
     redirect("/");
   }

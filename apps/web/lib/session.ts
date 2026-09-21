@@ -107,7 +107,40 @@ export function canAccessOwner(session: SeatdSession): boolean {
 }
 
 export function canAccessPlatform(session: SeatdSession): boolean {
-  return session.roles.some((role) => role === "platform_admin");
+  return session.roles.some(
+    (role) => role === "platform_admin" || role === "support",
+  );
+}
+
+/** Suspend/reactivate tenants, provision tenants, manage owners. */
+export function canWritePlatform(session: SeatdSession): boolean {
+  return session.roles.includes("platform_admin");
+}
+
+/** Invite/revoke/reactivate platform admins. */
+export function canManagePlatformAdmins(session: SeatdSession): boolean {
+  return session.roles.includes("platform_admin");
+}
+
+export function platformRoleLabel(session: SeatdSession): string {
+  if (session.roles.includes("platform_admin")) {
+    return "Platform admin";
+  }
+  if (session.roles.includes("support")) {
+    return "Support";
+  }
+  return "Platform";
+}
+
+export function homePath(session: SeatdSession): string {
+  if (canAccessPlatform(session)) {
+    return "/platform";
+  }
+  if (canAccessOwner(session)) {
+    return "/owner";
+  }
+  // Authenticated but no workspace role — never return /login (redirect loop).
+  return "/";
 }
 
 /** True when the owner workspace exists but venue setup has not finished. */

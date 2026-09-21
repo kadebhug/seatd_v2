@@ -8,11 +8,7 @@ import {
   ShieldCheck,
 } from "@phosphor-icons/react/dist/ssr";
 import { safeReturnTo } from "../../lib/auth";
-import {
-  canAccessOwner,
-  canAccessPlatform,
-  getCookieSession,
-} from "../../lib/session";
+import { getCookieSession, homePath } from "../../lib/session";
 
 type LoginPageProps = {
   searchParams: Promise<{
@@ -29,12 +25,7 @@ export const metadata: Metadata = {
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const session = await getCookieSession();
   if (session) {
-    if (canAccessPlatform(session)) {
-      redirect("/platform");
-    }
-    if (canAccessOwner(session)) {
-      redirect("/owner");
-    }
+    redirect(homePath(session));
   }
 
   const params = await searchParams;

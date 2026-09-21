@@ -11,6 +11,7 @@ import { TypeToConfirmDialog } from "../../components/confirm-dialog";
 
 type Props = {
   initialData: PlatformAdminsResponse;
+  canManageAdmins?: boolean;
 };
 
 type PendingAction =
@@ -19,7 +20,10 @@ type PendingAction =
   | { type: "revoke-invitation"; grant: PlatformAdminGrant }
   | null;
 
-export function AdminActions({ initialData }: Readonly<Props>) {
+export function AdminActions({
+  initialData,
+  canManageAdmins = false,
+}: Readonly<Props>) {
   const [data, setData] = useState(initialData);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"platform_admin" | "support">(
@@ -40,6 +44,7 @@ export function AdminActions({ initialData }: Readonly<Props>) {
   }
 
   async function invite() {
+    if (!canManageAdmins) return;
     setBusy(true);
     setError("");
     try {
@@ -63,7 +68,7 @@ export function AdminActions({ initialData }: Readonly<Props>) {
   }
 
   async function confirm(actionReason: string) {
-    if (!pending) return;
+    if (!pending || !canManageAdmins) return;
     setBusy(true);
     setError("");
     try {
@@ -91,47 +96,49 @@ export function AdminActions({ initialData }: Readonly<Props>) {
 
   return (
     <section className="grid two">
-      <section className="panel form">
-        <h2>Invite Admin</h2>
-        <label>
-          Email
-          <input
-            autoComplete="email"
-            onChange={(event) => setEmail(event.target.value)}
-            type="email"
-            value={email}
-          />
-        </label>
-        <label>
-          Role
-          <select
-            onChange={(event) =>
-              setRole(event.target.value as "platform_admin" | "support")
-            }
-            value={role}
-          >
-            <option value="platform_admin">Platform admin</option>
-            <option value="support">Support</option>
-          </select>
-        </label>
-        <label>
-          Reason
-          <textarea
-            onChange={(event) => setReason(event.target.value)}
-            value={reason}
-          />
-        </label>
-        <button disabled={busy || !email || !reason.trim()} onClick={invite}>
-          {busy ? "Inviting..." : "Invite"}
-        </button>
-        {error ? (
-          <p aria-live="assertive" className="toast error" role="alert">
-            {error}
-          </p>
-        ) : null}
-      </section>
+      {canManageAdmins ? (
+        <section className="panel form">
+          <h2>Invite Admin</h2>
+          <label>
+            Email
+            <input
+              autoComplete="email"
+              onChange={(event) => setEmail(event.target.value)}
+              type="email"
+              value={email}
+            />
+          </label>
+          <label>
+            Role
+            <select
+              onChange={(event) =>
+                setRole(event.target.value as "platform_admin" | "support")
+              }
+              value={role}
+            >
+              <option value="platform_admin">Platform admin</option>
+              <option value="support">Support</option>
+            </select>
+          </label>
+          <label>
+            Reason
+            <textarea
+              onChange={(event) => setReason(event.target.value)}
+              value={reason}
+            />
+          </label>
+          <button disabled={busy || !email || !reason.trim()} onClick={invite}>
+            {busy ? "Inviting..." : "Invite"}
+          </button>
+          {error ? (
+            <p aria-live="assertive" className="toast error" role="alert">
+              {error}
+            </p>
+          ) : null}
+        </section>
+      ) : null}
 
-      <section className="panel">
+      <section className={canManageAdmins ? "panel" : "panel grid-span"}>
         <h2>Pending Invitations</h2>
         <div className="platform-table">
           {data.invitations.filter((grant) => !grant.consumedAt && !grant.revokedAt)
@@ -144,13 +151,17 @@ export function AdminActions({ initialData }: Readonly<Props>) {
                     <strong>{grant.email}</strong>
                     <small>{humanize(grant.role)}</small>
                   </span>
-                  <button
-                    className="secondary"
-                    onClick={() => setPending({ type: "revoke-invitation", grant })}
-                    type="button"
-                  >
-                    Revoke
-                  </button>
+                  {canManageAdmins ? (
+                    <button
+                      className="secondary"
+                      onClick={() =>
+                        setPending({ type: "revoke-invitation", grant })
+                      }
+                      type="button"
+                    >
+                      Revoke
+                    </button>
+                  ) : null}
                 </div>
               ))
           ) : (
@@ -173,39 +184,51 @@ export function AdminActions({ initialData }: Readonly<Props>) {
                 label={admin.disabledAt ? "disabled" : "active"}
                 variant={admin.disabledAt ? "disabled" : "active"}
               />
-              <button
-                className="secondary"
-                onClick={() =>
-                  setPending({
-                    type: admin.disabledAt ? "reactivate-admin" : "revoke-admin",
-                    admin,
-                  })
-                }
-                type="button"
-              >
-                {admin.disabledAt ? "Reactivate" : "Revoke"}
-              </button>
+              {canManageAdmins ? (
+                <button
+                  className="secondary"
+                  onClick={() =>
+                    setPending({
+                      type: admin.disabledAt
+                        ? "reactivate-admin"
+                        : "revoke-admin",
+                      admin,
+                    })
+                  }
+                  type="button"
+                >
+                  {admin.disabledAt ? "Reactivate" : "Revoke"}
+                </button>
+              ) : null}
             </div>
           ))}
         </div>
       </section>
 
-      <TypeToConfirmDialog
-        actionLabel={pending?.type === "reactivate-admin" ? "Reactivate" : "Revoke"}
-        busy={busy}
-        confirmationLabel={`Type "${confirmationPhrase(pending)}" to confirm`}
-        confirmationPhrase={confirmationPhrase(pending)}
-        description="This changes platform access immediately."
-        destructive={pending?.type !== "reactivate-admin"}
-        errorMessage={error}
-        onCancel={() => {
-          setPending(null);
-          setError("");
-        }}
-        onConfirm={confirm}
-        open={pending !== null}
-        title={pending?.type === "reactivate-admin" ? "Reactivate admin" : "Revoke access"}
-      />
+      {canManageAdmins ? (
+        <TypeToConfirmDialog
+          actionLabel={
+            pending?.type === "reactivate-admin" ? "Reactivate" : "Revoke"
+          }
+          busy={busy}
+          confirmationLabel={`Type "${confirmationPhrase(pending)}" to confirm`}
+          confirmationPhrase={confirmationPhrase(pending)}
+          description="This changes platform access immediately."
+          destructive={pending?.type !== "reactivate-admin"}
+          errorMessage={error}
+          onCancel={() => {
+            setPending(null);
+            setError("");
+          }}
+          onConfirm={confirm}
+          open={pending !== null}
+          title={
+            pending?.type === "reactivate-admin"
+              ? "Reactivate admin"
+              : "Revoke access"
+          }
+        />
+      ) : null}
     </section>
   );
 }

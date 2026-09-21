@@ -5,6 +5,7 @@ import type {
 } from "@seatd/typescript-seatd-client";
 import { StatusBadge } from "../components/status-badge";
 import { seatdFetch } from "../../lib/seatd-api";
+import { canWritePlatform, getSession } from "../../lib/session";
 import { TenantDetailPanel } from "./tenant-detail-panel";
 
 export const dynamic = "force-dynamic";
@@ -17,6 +18,8 @@ type SearchParams = {
 export default async function PlatformPage({
   searchParams,
 }: Readonly<{ searchParams: Promise<SearchParams> }>) {
+  const session = await getSession();
+  const canWrite = canWritePlatform(session);
   const params = await searchParams;
   const query = params.q?.trim() ?? "";
   const tenants = await seatdFetch<PlatformTenantsResponse>(
@@ -34,14 +37,13 @@ export default async function PlatformPage({
       <section className="page-heading">
         <p className="eyebrow">Platform</p>
         <h1>Tenant Operations</h1>
-        <div className="platform-tenant-actions">
-          <Link className="button-link" href="/platform/tenants/new">
-            New Tenant
-          </Link>
-          <Link className="button-link secondary" href="/platform/admins">
-            Admins
-          </Link>
-        </div>
+        {canWrite ? (
+          <div className="platform-tenant-actions">
+            <Link className="button-link" href="/platform/tenants/new">
+              New Tenant
+            </Link>
+          </div>
+        ) : null}
       </section>
 
       <section className="platform-console">
@@ -84,7 +86,11 @@ export default async function PlatformPage({
         </aside>
 
         {detail ? (
-          <TenantDetailPanel initialDetail={detail} />
+          <TenantDetailPanel
+            canWrite={canWrite}
+            initialDetail={detail}
+            key={detail.tenant.id}
+          />
         ) : (
           <section className="panel">
             <p className="empty-state">No tenants are available.</p>

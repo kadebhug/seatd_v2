@@ -6,12 +6,14 @@ import {
   exchangeCode,
   fetchDiscovery,
   oidcTransactionCookieName,
+  safeReturnTo,
   sessionCookieName,
   sessionTTLSeconds,
   signValue,
   verifyIDToken,
   webBaseURL,
 } from "../../../../lib/auth";
+import { homePath, type SeatdRole } from "../../../../lib/session";
 
 export const runtime = "nodejs";
 
@@ -49,7 +51,21 @@ export async function GET(request: Request) {
       path: "/",
       maxAge: sessionTTLSeconds(),
     });
-    return NextResponse.redirect(new URL(transaction.returnTo, webBaseURL()));
+    const returnTo = safeReturnTo(transaction.returnTo);
+    // Default post-login target is /owner; platform admins should land on /platform.
+    const destination =
+      returnTo === "/owner"
+        ? homePath({
+            actorRef: session.actorRef,
+            displayName: session.displayName,
+            organisationId: "",
+            locationId: "",
+            roles: (session.memberships ?? []).map(
+              (membership) => membership.role as SeatdRole,
+            ),
+          })
+        : returnTo;
+    return NextResponse.redirect(new URL(destination, webBaseURL()));
   } catch {
     return NextResponse.redirect(new URL("/auth/error", webBaseURL()));
   }

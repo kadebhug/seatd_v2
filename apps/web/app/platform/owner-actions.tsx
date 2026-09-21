@@ -8,9 +8,11 @@ import type {
   PlatformTenantAuditResponse,
 } from "@seatd/typescript-seatd-client";
 import { TypeToConfirmDialog } from "../components/confirm-dialog";
+import { StatusBadge } from "../components/status-badge";
 
 type Props = {
   tenantId: string;
+  canWrite?: boolean;
 };
 
 type PendingAction =
@@ -19,7 +21,10 @@ type PendingAction =
   | { type: "reassign"; owner: Membership; toEmail: string }
   | null;
 
-export function OwnerActions({ tenantId }: Readonly<Props>) {
+export function OwnerActions({
+  tenantId,
+  canWrite = false,
+}: Readonly<Props>) {
   const [owners, setOwners] = useState<Membership[]>([]);
   const [events, setEvents] = useState<PlatformAuditEvent[]>([]);
   const [email, setEmail] = useState("");
@@ -107,90 +112,104 @@ export function OwnerActions({ tenantId }: Readonly<Props>) {
 
   return (
     <section className="grid two">
-      <section className="panel form">
-        <h2>Owners</h2>
-        <label>
-          Email
-          <input
-            autoComplete="email"
-            onChange={(event) => setEmail(event.target.value)}
-            type="email"
-            value={email}
-          />
-        </label>
-        <label>
-          Display name
-          <input
-            onChange={(event) => setDisplayName(event.target.value)}
-            value={displayName}
-          />
-        </label>
-        <label>
-          Reason
-          <textarea
-            onChange={(event) => setReason(event.target.value)}
-            value={reason}
-          />
-        </label>
-        <button disabled={busy || !email || !reason.trim()} onClick={invite}>
-          Invite Owner
-        </button>
-        {error ? (
-          <p aria-live="assertive" className="toast error" role="alert">
-            {error}
-          </p>
-        ) : null}
-      </section>
+      {canWrite ? (
+        <section className="panel form">
+          <h2>Owners</h2>
+          <label>
+            Email
+            <input
+              autoComplete="email"
+              onChange={(event) => setEmail(event.target.value)}
+              type="email"
+              value={email}
+            />
+          </label>
+          <label>
+            Display name
+            <input
+              onChange={(event) => setDisplayName(event.target.value)}
+              value={displayName}
+            />
+          </label>
+          <label>
+            Reason
+            <textarea
+              onChange={(event) => setReason(event.target.value)}
+              value={reason}
+            />
+          </label>
+          <button disabled={busy || !email || !reason.trim()} onClick={invite}>
+            Invite Owner
+          </button>
+          {error ? (
+            <p aria-live="assertive" className="toast error" role="alert">
+              {error}
+            </p>
+          ) : null}
+        </section>
+      ) : null}
 
-      <section className="panel">
+      <section className={canWrite ? "panel" : "panel grid-span"}>
         <h2>Owner Roster</h2>
         <div className="platform-table">
           {owners.length > 0 ? (
             owners.map((owner) => (
-              <div className="platform-table-row" key={owner.id}>
-                <span>
-                  <strong>{owner.displayName ?? owner.memberRef}</strong>
-                  <small>{owner.email ?? owner.memberRef}</small>
-                </span>
-                <span>{owner.disabledAt ? "Disabled" : "Active"}</span>
-                <input
-                  aria-label="New owner email"
-                  onChange={(event) =>
-                    setReassignEmail((current) => ({
-                      ...current,
-                      [owner.id]: event.target.value,
-                    }))
-                  }
-                  placeholder="Reassign to email"
-                  type="email"
-                  value={reassignEmail[owner.id] ?? ""}
-                />
-                <button
-                  className="secondary"
-                  onClick={() =>
-                    setPending({
-                      type: owner.disabledAt ? "reactivate" : "suspend",
-                      owner,
-                    })
-                  }
-                  type="button"
-                >
-                  {owner.disabledAt ? "Reactivate" : "Suspend"}
-                </button>
-                <button
-                  className="secondary"
-                  disabled={!reassignEmail[owner.id]?.trim() || Boolean(owner.disabledAt)}
-                  onClick={() =>
-                    setPending({
-                      type: "reassign",
-                      owner,
-                      toEmail: reassignEmail[owner.id] ?? "",
-                    })
-                  }
-                  type="button"
-                >
-                  Reassign
-                </button>
+              <div className="platform-owner-row" key={owner.id}>
+                <div className="platform-owner-meta">
+                  <span>
+                    <strong>{owner.displayName ?? owner.memberRef}</strong>
+                    <small>{owner.email ?? owner.memberRef}</small>
+                  </span>
+                  <StatusBadge
+                    label={owner.disabledAt ? "Disabled" : "Active"}
+                    variant={owner.disabledAt ? "disabled" : "active"}
+                  />
+                </div>
+                {canWrite ? (
+                  <div className="platform-owner-actions">
+                    <input
+                      aria-label="New owner email"
+                      onChange={(event) =>
+                        setReassignEmail((current) => ({
+                          ...current,
+                          [owner.id]: event.target.value,
+                        }))
+                      }
+                      placeholder="Reassign to email"
+                      type="email"
+                      value={reassignEmail[owner.id] ?? ""}
+                    />
+                    <button
+                      className="secondary"
+                      onClick={() =>
+                        setPending({
+                          type: owner.disabledAt ? "reactivate" : "suspend",
+                          owner,
+                        })
+                      }
+                      type="button"
+                    >
+                      {owner.disabledAt ? "Reactivate" : "Suspend"}
+                    </button>
+                    <button
+                      className="secondary"
+                      disabled={
+                        !reassignEmail[owner.id]?.trim() ||
+                        Boolean(owner.disabledAt)
+                      }
+                      onClick={() =>
+                        setPending({
+                          type: "reassign",
+                          owner,
+                          toEmail: reassignEmail[owner.id] ?? "",
+                        })
+                      }
+                      type="button"
+                    >
+                      Reassign
+                    </button>
+                  </div>
+                ) : null}
               </div>
             ))
           ) : (

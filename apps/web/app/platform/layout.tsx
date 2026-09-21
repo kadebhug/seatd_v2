@@ -5,6 +5,7 @@ import {
   canAccessOwner,
   canAccessPlatform,
   getSession,
+  platformRoleLabel,
 } from "../../lib/session";
 
 export default async function PlatformLayout({
@@ -15,7 +16,10 @@ export default async function PlatformLayout({
     redirect("/owner");
   }
 
-  const navItems = [{ href: "/platform", label: "Console" }];
+  const navItems = [
+    { href: "/platform", label: "Console" },
+    { href: "/platform/admins", label: "Admins" },
+  ];
   if (canAccessOwner(session)) {
     navItems.push({ href: "/owner", label: "Owner workspace" });
   }
@@ -26,7 +30,7 @@ export default async function PlatformLayout({
       displayName={session.displayName}
       homeHref="/platform"
       navItems={navItems}
-      role="Platform"
+      role={platformRoleLabel(session)}
     >
       {children}
     </AppShell>
