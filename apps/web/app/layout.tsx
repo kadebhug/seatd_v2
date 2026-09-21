@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import type React from "react";
-import { dmMono, instrumentSans } from "../lib/fonts";
+import { archivo, dmMono, instrumentSans, sourceSerif } from "../lib/fonts";
 import "./styles.css";
 
 export const metadata: Metadata = {
@@ -8,11 +8,11 @@ export const metadata: Metadata = {
     process.env.SEATD_WEB_BASE_URL?.trim() || "http://localhost:3000",
   ),
   title: {
-    default: "Seatd",
+    default: "Seatd · Know what's happening on your floor",
     template: "%s · Seatd",
   },
   description:
-    "Seatd helps restaurant teams see table activity, respond to guest requests, and run the floor with less guesswork.",
+    "Seatd is restaurant floor operations software. See table status live, let guests request help from the table, and run service with less guesswork.",
   icons: {
     icon: [
       { url: "/favicon.ico" },
@@ -21,14 +21,16 @@ export const metadata: Metadata = {
     apple: [{ url: "/apple-touch-icon.png" }],
   },
   openGraph: {
-    title: "Seatd",
-    description: "Restaurant floor operations. Every table, in sync.",
+    title: "Seatd · Know what's happening on your floor",
+    description:
+      "Live floor visibility and table QR guest assistance for busy restaurants.",
     images: [{ url: "/og-brand.png" }],
+    type: "website",
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#F3EEE4",
+  themeColor: "#E3DDD6",
   colorScheme: "light",
 };
 
@@ -36,7 +38,10 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html className={`${instrumentSans.variable} ${dmMono.variable}`} lang="en">
+    <html
+      className={`${instrumentSans.variable} ${dmMono.variable} ${archivo.variable} ${sourceSerif.variable}`}
+      lang="en"
+    >
       <body>
         <a className="skip-link" href="#main">
           Skip to main content
