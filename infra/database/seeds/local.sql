@@ -1,17 +1,19 @@
 -- Local-only seed fixtures belong here. Do not add production data to seeds.
 
 WITH org AS (
-    INSERT INTO organisations (id, slug, name, legacy_restaurant_id)
+    INSERT INTO organisations (id, slug, name, legacy_restaurant_id, onboarded_at)
     VALUES (
         '11111111-1111-1111-1111-111111111111',
         'demo-group',
         'Demo Restaurant Group',
-        'legacy-demo-restaurant'
+        'legacy-demo-restaurant',
+        now()
     )
     ON CONFLICT (id) DO UPDATE
     SET slug = EXCLUDED.slug,
         name = EXCLUDED.name,
         legacy_restaurant_id = EXCLUDED.legacy_restaurant_id,
+        onboarded_at = COALESCE(organisations.onboarded_at, EXCLUDED.onboarded_at),
         updated_at = now()
     RETURNING id
 ),

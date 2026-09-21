@@ -1,12 +1,24 @@
+import type { OwnerSnapshotResponse } from "@seatd/typescript-seatd-client";
 import { redirect } from "next/navigation";
-import { canAccessOwner, getSession } from "../../../lib/session";
+import { seatdFetch } from "../../../lib/seatd-api";
+import {
+  canAccessOwner,
+  getSession,
+  needsOwnerSetup,
+} from "../../../lib/session";
 import { OwnerOnboardingForm } from "./owner-onboarding-form";
 
 export const dynamic = "force-dynamic";
 
 export default async function OwnerOnboardingPage() {
   const session = await getSession();
-  if (!canAccessOwner(session)) {
+  if (!session.organisationId || !canAccessOwner(session)) {
+    redirect("/owner");
+  }
+
+  const snapshot =
+    await seatdFetch<OwnerSnapshotResponse>("/v1/owner/snapshot");
+  if (!needsOwnerSetup(snapshot.organisation)) {
     redirect("/owner");
   }
 

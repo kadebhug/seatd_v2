@@ -110,6 +110,13 @@ export function canAccessPlatform(session: SeatdSession): boolean {
   return session.roles.some((role) => role === "platform_admin");
 }
 
+/** True when the owner workspace exists but venue setup has not finished. */
+export function needsOwnerSetup(organisation: {
+  onboardedAt?: string | null;
+}): boolean {
+  return !organisation.onboardedAt;
+}
+
 function seatdSessionFromAPI(
   apiSession: APIWebSession,
   secret: string,

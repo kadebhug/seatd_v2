@@ -3356,16 +3356,6 @@
           }
         }
       },
-      "OwnerOnboardingRequest": {
-        "required": true,
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/OwnerOnboardingRequest"
-            }
-          }
-        }
-      },
       "DeviceHeartbeatRequest": {
         "required": true,
         "content": {
@@ -3404,16 +3394,6 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/OwnerSnapshotResponse"
-            }
-          }
-        }
-      },
-      "OwnerOnboardingResponse": {
-        "description": "Owner onboarding result",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/OwnerOnboardingResponse"
             }
           }
         }
@@ -3822,6 +3802,10 @@
               "active",
               "disabled"
             ]
+          },
+          "onboardedAt": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
@@ -5448,54 +5432,6 @@
           }
         }
       },
-      "OwnerOnboardingRequest": {
-        "type": "object",
-        "required": [
-          "organisationName",
-          "organisationSlug",
-          "locationName",
-          "locationSlug",
-          "timezone"
-        ],
-        "additionalProperties": false,
-        "properties": {
-          "organisationName": {
-            "type": "string",
-            "minLength": 1
-          },
-          "organisationSlug": {
-            "type": "string",
-            "minLength": 1
-          },
-          "locationName": {
-            "type": "string",
-            "minLength": 1
-          },
-          "locationSlug": {
-            "type": "string",
-            "minLength": 1
-          },
-          "timezone": {
-            "type": "string",
-            "minLength": 1
-          },
-          "floor": {
-            "$ref": "#/components/schemas/OwnerOnboardingFloor"
-          },
-          "servicePeriods": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/OwnerOnboardingServicePeriod"
-            }
-          },
-          "staff": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/OwnerOnboardingStaff"
-            }
-          }
-        }
-      },
       "OwnerOnboardingFloor": {
         "type": "object",
         "additionalProperties": false,
@@ -5603,76 +5539,6 @@
           },
           "endTime": {
             "type": "string"
-          }
-        }
-      },
-      "OwnerOnboardingStaff": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "email": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "role": {
-            "type": "string",
-            "enum": [
-              "location_manager",
-              "waiter",
-              "read_only"
-            ]
-          }
-        }
-      },
-      "OwnerOnboardingResponse": {
-        "type": "object",
-        "required": [
-          "organisation",
-          "location",
-          "zones",
-          "tables",
-          "servicePeriods",
-          "staff",
-          "session"
-        ],
-        "properties": {
-          "organisation": {
-            "$ref": "#/components/schemas/Organisation"
-          },
-          "location": {
-            "$ref": "#/components/schemas/Location"
-          },
-          "floor": {
-            "$ref": "#/components/schemas/Floor"
-          },
-          "zones": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Zone"
-            }
-          },
-          "tables": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Table"
-            }
-          },
-          "servicePeriods": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ServicePeriod"
-            }
-          },
-          "staff": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/OwnerOnboardingStaff"
-            }
-          },
-          "session": {
-            "$ref": "#/components/schemas/WebSession"
           }
         }
       },

@@ -199,10 +199,11 @@ type commandRequest struct {
 }
 
 type organisationDTO struct {
-	ID     string `json:"id"`
-	Slug   string `json:"slug"`
-	Name   string `json:"name"`
-	Status string `json:"status"`
+	ID          string  `json:"id"`
+	Slug        string  `json:"slug"`
+	Name        string  `json:"name"`
+	Status      string  `json:"status"`
+	OnboardedAt *string `json:"onboardedAt,omitempty"`
 }
 
 type locationDTO struct {
@@ -449,17 +450,6 @@ type layoutEditorSnapshotDTO struct {
 	Tables []tableStateDTO `json:"tables"`
 }
 
-type ownerOnboardingResponse struct {
-	Organisation   organisationDTO           `json:"organisation"`
-	Location       locationDTO               `json:"location"`
-	Floor          *floorDTO                 `json:"floor,omitempty"`
-	Zones          []zoneDTO                 `json:"zones"`
-	Tables         []tableDTO                `json:"tables"`
-	ServicePeriods []servicePeriodDTO        `json:"servicePeriods"`
-	Staff          []ownerOnboardingStaffDTO `json:"staff"`
-	Session        webSessionDTO             `json:"session"`
-}
-
 type displaySnapshotDTO struct {
 	OrganisationID string          `json:"organisationId"`
 	LocationID     string          `json:"locationId"`
@@ -555,17 +545,6 @@ type servicePeriodRequest struct {
 	ExpectedVersion int32   `json:"expectedVersion"`
 }
 
-type ownerOnboardingRequest struct {
-	OrganisationName string                            `json:"organisationName"`
-	OrganisationSlug string                            `json:"organisationSlug"`
-	LocationName     string                            `json:"locationName"`
-	LocationSlug     string                            `json:"locationSlug"`
-	Timezone         string                            `json:"timezone"`
-	Floor            ownerOnboardingFloorRequest       `json:"floor"`
-	ServicePeriods   []ownerOnboardingServicePeriodDTO `json:"servicePeriods"`
-	Staff            []ownerOnboardingStaffDTO         `json:"staff"`
-}
-
 type ownerOnboardingFloorRequest struct {
 	Name      string                        `json:"name"`
 	Slug      string                        `json:"slug"`
@@ -593,12 +572,6 @@ type ownerOnboardingServicePeriodDTO struct {
 	DaysOfWeek []int16 `json:"daysOfWeek"`
 	StartTime  string  `json:"startTime"`
 	EndTime    string  `json:"endTime"`
-}
-
-type ownerOnboardingStaffDTO struct {
-	Email string `json:"email"`
-	Name  string `json:"name"`
-	Role  string `json:"role"`
 }
 
 type analyticsRebuildRequest struct {
@@ -631,33 +604,6 @@ func (api *API) getOrganisation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, organisationFromDB(org))
-}
-
-func (api *API) onboardOwner(w http.ResponseWriter, r *http.Request) {
-	secret, ok := bearerCredential(w, r)
-	if !ok {
-		return
-	}
-	session, err := api.ident.ValidateWebSession(r.Context(), secret)
-	if err != nil {
-		api.writeIdentityError(w, err)
-		return
-	}
-	var req ownerOnboardingRequest
-	if !decodeJSONBody(w, r, &req) {
-		return
-	}
-	result, err := api.ident.OnboardOwner(r.Context(), ownerOnboardingParams(session, req))
-	if err != nil {
-		api.writeIdentityError(w, err)
-		return
-	}
-	refreshed, err := api.ident.ValidateWebSession(r.Context(), secret)
-	if err != nil {
-		api.writeIdentityError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusCreated, ownerOnboardingResponseFromDomain(r, api, result, refreshed))
 }
 
 func (api *API) getOwnerSnapshot(w http.ResponseWriter, r *http.Request) {
@@ -2449,99 +2395,6 @@ func servicePeriodInput(req servicePeriodRequest) analytics.ServicePeriodInput {
 	}
 }
 
-func ownerOnboardingParams(session identity.WebSession, req ownerOnboardingRequest) identity.OnboardOwnerParams {
-	zones := make([]identity.OnboardingZone, 0, len(req.Floor.Zones))
-	for _, zone := range req.Floor.Zones {
-		zones = append(zones, identity.OnboardingZone{
-			Name:      zone.Name,
-			SortOrder: zone.SortOrder,
-		})
-	}
-	tables := make([]identity.OnboardingTable, 0, len(req.Floor.Tables))
-	for _, table := range req.Floor.Tables {
-		tables = append(tables, identity.OnboardingTable{
-			Label:         table.Label,
-			CapacityLabel: table.CapacityLabel,
-			Shape:         table.Shape,
-			Geometry:      table.Geometry,
-			ZoneName:      table.ZoneName,
-		})
-	}
-	periods := make([]identity.OnboardingServicePeriod, 0, len(req.ServicePeriods))
-	for _, period := range req.ServicePeriods {
-		periods = append(periods, identity.OnboardingServicePeriod{
-			Name:       period.Name,
-			DaysOfWeek: period.DaysOfWeek,
-			StartTime:  period.StartTime,
-			EndTime:    period.EndTime,
-		})
-	}
-	staff := make([]identity.OnboardingStaffMember, 0, len(req.Staff))
-	for _, item := range req.Staff {
-		staff = append(staff, identity.OnboardingStaffMember{
-			Email: item.Email,
-			Name:  item.Name,
-			Role:  item.Role,
-		})
-	}
-	return identity.OnboardOwnerParams{
-		UserProfileID:    session.User.ID,
-		OrganisationName: req.OrganisationName,
-		OrganisationSlug: req.OrganisationSlug,
-		LocationName:     req.LocationName,
-		LocationSlug:     req.LocationSlug,
-		Timezone:         req.Timezone,
-		Floor: identity.OnboardingFloor{
-			Name:      req.Floor.Name,
-			Slug:      req.Floor.Slug,
-			Canvas:    req.Floor.Canvas,
-			Zones:     zones,
-			Tables:    tables,
-			SortOrder: req.Floor.SortOrder,
-		},
-		ServicePeriods: periods,
-		Staff:          staff,
-	}
-}
-
-func ownerOnboardingResponseFromDomain(r *http.Request, api *API, result identity.OnboardOwnerResult, session identity.WebSession) ownerOnboardingResponse {
-	var floor *floorDTO
-	if result.Floor != nil {
-		dto := floorFromDB(*result.Floor)
-		floor = &dto
-	}
-	zones := make([]zoneDTO, 0, len(result.Zones))
-	for _, zone := range result.Zones {
-		zones = append(zones, zoneFromDB(zone))
-	}
-	tables := make([]tableDTO, 0, len(result.Tables))
-	for _, table := range result.Tables {
-		tables = append(tables, tableFromDB(table))
-	}
-	periods := make([]servicePeriodDTO, 0, len(result.ServicePeriods))
-	for _, period := range result.ServicePeriods {
-		periods = append(periods, servicePeriodFromDB(period))
-	}
-	staff := make([]ownerOnboardingStaffDTO, 0, len(result.Staff))
-	for _, item := range result.Staff {
-		staff = append(staff, ownerOnboardingStaffDTO{
-			Email: item.Email,
-			Name:  item.Name,
-			Role:  item.Role,
-		})
-	}
-	return ownerOnboardingResponse{
-		Organisation:   organisationFromDB(result.Organisation),
-		Location:       locationFromDB(result.Location),
-		Floor:          floor,
-		Zones:          zones,
-		Tables:         tables,
-		ServicePeriods: periods,
-		Staff:          staff,
-		Session:        api.webSessionDTO(r, session),
-	}
-}
-
 func (api *API) analyticsInput(w http.ResponseWriter, r *http.Request) (requestContext, uuid.UUID, bool) {
 	ctx, ok := api.requestContext(w, r, true, true)
 	if !ok {
@@ -2648,7 +2501,13 @@ ORDER BY role, member_ref
 }
 
 func organisationFromDB(org db.Organisation) organisationDTO {
-	return organisationDTO{ID: org.ID.String(), Slug: org.Slug, Name: org.Name, Status: org.Status}
+	return organisationDTO{
+		ID:          org.ID.String(),
+		Slug:        org.Slug,
+		Name:        org.Name,
+		Status:      org.Status,
+		OnboardedAt: timePtr(org.OnboardedAt),
+	}
 }
 
 func locationFromDB(location db.Location) locationDTO {

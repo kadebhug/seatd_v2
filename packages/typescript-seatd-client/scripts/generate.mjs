@@ -149,6 +149,7 @@ export interface Organisation {
   slug: string;
   name: string;
   status: "active" | "disabled";
+  onboardedAt?: string;
 }
 
 export interface Location {
@@ -528,23 +529,6 @@ export interface OwnerOnboardingServicePeriodRequest {
   endTime: string;
 }
 
-export interface OwnerOnboardingStaff {
-  email?: string;
-  name?: string;
-  role?: "location_manager" | "waiter" | "read_only";
-}
-
-export interface OwnerOnboardingRequest {
-  organisationName: string;
-  organisationSlug: string;
-  locationName: string;
-  locationSlug: string;
-  timezone: string;
-  floor?: OwnerOnboardingFloorRequest;
-  servicePeriods?: OwnerOnboardingServicePeriodRequest[];
-  staff?: OwnerOnboardingStaff[];
-}
-
 export interface WebSession {
   sessionSecret?: string;
   id: string;
@@ -556,17 +540,6 @@ export interface WebSession {
   expiresAt: string;
   memberships: Membership[];
   locations: Location[];
-}
-
-export interface OwnerOnboardingResponse {
-  organisation: Organisation;
-  location: Location;
-  floor?: Floor;
-  zones: Zone[];
-  tables: Table[];
-  servicePeriods: ServicePeriod[];
-  staff: OwnerOnboardingStaff[];
-  session: WebSession;
 }
 
 export interface OwnerSetupRequest {

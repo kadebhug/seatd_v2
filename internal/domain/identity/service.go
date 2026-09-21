@@ -131,18 +131,6 @@ type WebSession struct {
 	RotatedFromSessionID uuid.NullUUID
 }
 
-type OnboardOwnerParams struct {
-	UserProfileID    uuid.UUID
-	OrganisationName string
-	OrganisationSlug string
-	LocationName     string
-	LocationSlug     string
-	Timezone         string
-	Floor            OnboardingFloor
-	ServicePeriods   []OnboardingServicePeriod
-	Staff            []OnboardingStaffMember
-}
-
 type OnboardingFloor struct {
 	Name      string
 	Slug      string
@@ -170,24 +158,6 @@ type OnboardingServicePeriod struct {
 	DaysOfWeek []int16
 	StartTime  string
 	EndTime    string
-}
-
-type OnboardingStaffMember struct {
-	Email      string
-	Name       string
-	Role       string
-	LocationID uuid.UUID
-}
-
-type OnboardOwnerResult struct {
-	Organisation   db.Organisation
-	Location       db.Location
-	Floor          *db.Floor
-	Zones          []db.Zone
-	Tables         []db.Table
-	ServicePeriods []db.ServicePeriod
-	Staff          []OnboardingStaffMember
-	WebSession     WebSession
 }
 
 type PlatformProvisionTenantParams struct {
@@ -333,89 +303,6 @@ func consumePendingPlatformGrant(ctx context.Context, q *db.Queries, userProfile
 	return nil
 }
 
-func (s *Service) OnboardOwner(ctx context.Context, arg OnboardOwnerParams) (OnboardOwnerResult, error) {
-	arg, err := normalizeOnboardOwnerParams(arg)
-	if err != nil {
-		return OnboardOwnerResult{}, err
-	}
-	if err := validateOnboardOwnerParams(arg); err != nil {
-		return OnboardOwnerResult{}, err
-	}
-
-	var result OnboardOwnerResult
-	err = s.inAdminTx(ctx, func(q *db.Queries) error {
-		existingOrgs, err := q.ListUserOrganisationMemberships(ctx, nullableUUID(arg.UserProfileID))
-		if err != nil {
-			return fmt.Errorf("listing existing organisation memberships: %w", err)
-		}
-		existingLocations, err := q.ListUserLocationMemberships(ctx, nullableUUID(arg.UserProfileID))
-		if err != nil {
-			return fmt.Errorf("listing existing location memberships: %w", err)
-		}
-		if len(existingOrgs) > 0 || len(existingLocations) > 0 {
-			return ErrAlreadyExists
-		}
-
-		org, err := q.CreateOrganisation(ctx, db.CreateOrganisationParams{
-			Slug: arg.OrganisationSlug,
-			Name: arg.OrganisationName,
-		})
-		if err != nil {
-			return fmt.Errorf("creating organisation: %w", err)
-		}
-		location, err := q.CreateLocation(ctx, db.CreateLocationParams{
-			OrganisationID: org.ID,
-			Slug:           arg.LocationSlug,
-			Name:           arg.LocationName,
-			Timezone:       arg.Timezone,
-		})
-		if err != nil {
-			return fmt.Errorf("creating location: %w", err)
-		}
-		memberRef := userProfileActorRef(arg.UserProfileID)
-		if _, err := q.CreateUserOrganisationMembership(ctx, db.CreateUserOrganisationMembershipParams{
-			OrganisationID: org.ID,
-			UserProfileID:  nullableUUID(arg.UserProfileID),
-			MemberRef:      memberRef,
-			Role:           RoleOrganisationOwner,
-		}); err != nil {
-			return fmt.Errorf("creating owner membership: %w", err)
-		}
-
-		floor, zones, tables, err := createOnboardingLayout(ctx, q, org.ID, location.ID, arg.Floor)
-		if err != nil {
-			return err
-		}
-		periods, err := createOnboardingServicePeriods(ctx, q, org.ID, location.ID, arg.ServicePeriods)
-		if err != nil {
-			return err
-		}
-
-		result = OnboardOwnerResult{
-			Organisation:   org,
-			Location:       location,
-			Floor:          floor,
-			Zones:          zones,
-			Tables:         tables,
-			ServicePeriods: periods,
-			Staff:          arg.Staff,
-			WebSession: WebSession{
-				User: db.UserProfile{ID: arg.UserProfileID},
-				Memberships: []Membership{{
-					OrganisationID: org.ID,
-					MemberRef:      memberRef,
-					Role:           RoleOrganisationOwner,
-				}},
-			},
-		}
-		return nil
-	})
-	if mapped := mapIdentityConstraintError(err); mapped != nil {
-		return OnboardOwnerResult{}, mapped
-	}
-	return result, err
-}
-
 func (s *Service) PlatformProvisionTenant(ctx context.Context, arg PlatformProvisionTenantParams) (PlatformProvisionTenantResult, error) {
 	arg.OrganisationName = strings.TrimSpace(arg.OrganisationName)
 	arg.OrganisationSlug = strings.TrimSpace(arg.OrganisationSlug)
@@ -486,16 +373,11 @@ func (s *Service) OwnerSetup(ctx context.Context, arg OwnerSetupParams) (OwnerSe
 	if arg.UserProfileID == uuid.Nil {
 		return OwnerSetupResult{}, ErrValidation
 	}
-	onboarding := OnboardOwnerParams{
-		UserProfileID:  arg.UserProfileID,
-		Floor:          arg.Floor,
-		ServicePeriods: arg.ServicePeriods,
-	}
-	normalized, err := normalizeOnboardOwnerParams(onboarding)
+	arg, err := normalizeOwnerSetupParams(arg)
 	if err != nil {
 		return OwnerSetupResult{}, err
 	}
-	if err := validateOwnerSetupParams(normalized); err != nil {
+	if err := validateOwnerSetupParams(arg); err != nil {
 		return OwnerSetupResult{}, err
 	}
 
@@ -530,11 +412,11 @@ func (s *Service) OwnerSetup(ctx context.Context, arg OwnerSetupParams) (OwnerSe
 			return ErrNotFound
 		}
 		location := locations[0]
-		floor, zones, tables, err := createOnboardingLayout(ctx, q, ownerOrgID, location.ID, normalized.Floor)
+		floor, zones, tables, err := createOnboardingLayout(ctx, q, ownerOrgID, location.ID, arg.Floor)
 		if err != nil {
 			return err
 		}
-		periods, err := createOnboardingServicePeriods(ctx, q, ownerOrgID, location.ID, normalized.ServicePeriods)
+		periods, err := createOnboardingServicePeriods(ctx, q, ownerOrgID, location.ID, arg.ServicePeriods)
 		if err != nil {
 			return err
 		}
@@ -558,7 +440,43 @@ func (s *Service) OwnerSetup(ctx context.Context, arg OwnerSetupParams) (OwnerSe
 	return result, err
 }
 
-func validateOwnerSetupParams(arg OnboardOwnerParams) error {
+func normalizeOwnerSetupParams(arg OwnerSetupParams) (OwnerSetupParams, error) {
+	arg.Floor.Name = strings.TrimSpace(arg.Floor.Name)
+	if arg.Floor.Name == "" {
+		arg.Floor.Name = "Main floor"
+	}
+	arg.Floor.Slug = strings.TrimSpace(arg.Floor.Slug)
+	if arg.Floor.Slug == "" {
+		arg.Floor.Slug = "main-floor"
+	}
+	arg.Floor.Canvas = defaultJSONObject(arg.Floor.Canvas)
+	if len(arg.Floor.Zones) == 0 {
+		arg.Floor.Zones = []OnboardingZone{{Name: "Dining room"}}
+	}
+	for i := range arg.Floor.Zones {
+		arg.Floor.Zones[i].Name = strings.TrimSpace(arg.Floor.Zones[i].Name)
+	}
+	for i := range arg.Floor.Tables {
+		arg.Floor.Tables[i].Label = strings.TrimSpace(arg.Floor.Tables[i].Label)
+		arg.Floor.Tables[i].CapacityLabel = strings.TrimSpace(arg.Floor.Tables[i].CapacityLabel)
+		arg.Floor.Tables[i].Shape = strings.TrimSpace(arg.Floor.Tables[i].Shape)
+		arg.Floor.Tables[i].ZoneName = strings.TrimSpace(arg.Floor.Tables[i].ZoneName)
+		if arg.Floor.Tables[i].Shape == "" {
+			arg.Floor.Tables[i].Shape = "rectangle"
+		}
+		if arg.Floor.Tables[i].CapacityLabel == "" {
+			arg.Floor.Tables[i].CapacityLabel = "2-4"
+		}
+	}
+	for i := range arg.ServicePeriods {
+		arg.ServicePeriods[i].Name = strings.TrimSpace(arg.ServicePeriods[i].Name)
+		arg.ServicePeriods[i].StartTime = strings.TrimSpace(arg.ServicePeriods[i].StartTime)
+		arg.ServicePeriods[i].EndTime = strings.TrimSpace(arg.ServicePeriods[i].EndTime)
+	}
+	return arg, nil
+}
+
+func validateOwnerSetupParams(arg OwnerSetupParams) error {
 	if arg.UserProfileID == uuid.Nil || !validSlug(arg.Floor.Slug) || !jsonObject(arg.Floor.Canvas) {
 		return ErrValidation
 	}
@@ -1401,102 +1319,6 @@ func jsonObject(value json.RawMessage) bool {
 	return json.Unmarshal(value, &decoded) == nil
 }
 
-func normalizeOnboardOwnerParams(arg OnboardOwnerParams) (OnboardOwnerParams, error) {
-	arg.OrganisationName = strings.TrimSpace(arg.OrganisationName)
-	arg.OrganisationSlug = strings.TrimSpace(arg.OrganisationSlug)
-	arg.LocationName = strings.TrimSpace(arg.LocationName)
-	arg.LocationSlug = strings.TrimSpace(arg.LocationSlug)
-	arg.Timezone = strings.TrimSpace(arg.Timezone)
-	if arg.Timezone == "" {
-		arg.Timezone = "UTC"
-	}
-	arg.Floor.Name = strings.TrimSpace(arg.Floor.Name)
-	if arg.Floor.Name == "" {
-		arg.Floor.Name = "Main floor"
-	}
-	arg.Floor.Slug = strings.TrimSpace(arg.Floor.Slug)
-	if arg.Floor.Slug == "" {
-		arg.Floor.Slug = "main-floor"
-	}
-	arg.Floor.Canvas = defaultJSONObject(arg.Floor.Canvas)
-	if len(arg.Floor.Zones) == 0 {
-		arg.Floor.Zones = []OnboardingZone{{Name: "Dining room"}}
-	}
-	for i := range arg.Floor.Zones {
-		arg.Floor.Zones[i].Name = strings.TrimSpace(arg.Floor.Zones[i].Name)
-	}
-	for i := range arg.Floor.Tables {
-		arg.Floor.Tables[i].Label = strings.TrimSpace(arg.Floor.Tables[i].Label)
-		arg.Floor.Tables[i].CapacityLabel = strings.TrimSpace(arg.Floor.Tables[i].CapacityLabel)
-		arg.Floor.Tables[i].Shape = strings.TrimSpace(arg.Floor.Tables[i].Shape)
-		arg.Floor.Tables[i].ZoneName = strings.TrimSpace(arg.Floor.Tables[i].ZoneName)
-		if arg.Floor.Tables[i].Shape == "" {
-			arg.Floor.Tables[i].Shape = "rectangle"
-		}
-		if arg.Floor.Tables[i].CapacityLabel == "" {
-			arg.Floor.Tables[i].CapacityLabel = "2-4"
-		}
-	}
-	for i := range arg.ServicePeriods {
-		arg.ServicePeriods[i].Name = strings.TrimSpace(arg.ServicePeriods[i].Name)
-		arg.ServicePeriods[i].StartTime = strings.TrimSpace(arg.ServicePeriods[i].StartTime)
-		arg.ServicePeriods[i].EndTime = strings.TrimSpace(arg.ServicePeriods[i].EndTime)
-	}
-	for i := range arg.Staff {
-		arg.Staff[i].Email = strings.TrimSpace(arg.Staff[i].Email)
-		arg.Staff[i].Name = strings.TrimSpace(arg.Staff[i].Name)
-		arg.Staff[i].Role = strings.TrimSpace(arg.Staff[i].Role)
-	}
-	return arg, nil
-}
-
-func validateOnboardOwnerParams(arg OnboardOwnerParams) error {
-	if arg.UserProfileID == uuid.Nil ||
-		arg.OrganisationName == "" ||
-		arg.LocationName == "" ||
-		!validSlug(arg.OrganisationSlug) ||
-		!validSlug(arg.LocationSlug) ||
-		!validSlug(arg.Floor.Slug) ||
-		!jsonObject(arg.Floor.Canvas) {
-		return ErrValidation
-	}
-	if _, err := time.LoadLocation(arg.Timezone); err != nil {
-		return ErrValidation
-	}
-	zoneNames := map[string]bool{}
-	for _, zone := range arg.Floor.Zones {
-		if zone.Name == "" || zoneNames[zone.Name] {
-			return ErrValidation
-		}
-		zoneNames[zone.Name] = true
-	}
-	for _, table := range arg.Floor.Tables {
-		if table.Label == "" ||
-			table.CapacityLabel == "" ||
-			!validTableShape(table.Shape) ||
-			!jsonObject(table.Geometry) {
-			return ErrValidation
-		}
-		if table.ZoneName != "" && !zoneNames[table.ZoneName] {
-			return ErrValidation
-		}
-	}
-	for _, period := range arg.ServicePeriods {
-		if _, _, _, _, err := parseOnboardingServicePeriod(period); err != nil {
-			return err
-		}
-	}
-	for _, staff := range arg.Staff {
-		if staff.Email == "" && staff.Name == "" {
-			return ErrValidation
-		}
-		if staff.Role != "" && !validStaffRole(staff.Role) {
-			return ErrValidation
-		}
-	}
-	return nil
-}
-
 func createOnboardingLayout(
 	ctx context.Context,
 	q *db.Queries,
@@ -1647,15 +1469,6 @@ func validSlug(value string) bool {
 func validTableShape(value string) bool {
 	switch value {
 	case "rectangle", "circle", "square", "custom":
-		return true
-	default:
-		return false
-	}
-}
-
-func validStaffRole(value string) bool {
-	switch value {
-	case RoleLocationManager, RoleWaiter, RoleReadOnly:
 		return true
 	default:
 		return false
